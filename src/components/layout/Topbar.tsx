@@ -55,15 +55,15 @@ const Topbar = () => {
     navigate("/login", { replace: true });
   };
 
-  const currentSegment = location.pathname.split("/").pop() ?? "dashboard";
+  const primarySegment = location.pathname.split("/").filter(Boolean)[1] ?? "dashboard";
   const { title: pageTitle, subtitle: pageSubtitle } =
-    pageTitles[currentSegment] ?? pageTitles.dashboard;
+    pageTitles[primarySegment] ?? pageTitles.dashboard;
 
   const displayName = user?.name || "Admin";
   const displayRole = user?.role ?? "admin";
 
   return (
-    <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-slate-200 bg-white">
+    <header className="fixed left-64 right-0 top-0 z-30 h-20 border-b border-slate-200 bg-white">
       <div className="flex h-full items-center justify-between px-6">
         {/* Left Section */}
         <div className="flex items-center gap-4">

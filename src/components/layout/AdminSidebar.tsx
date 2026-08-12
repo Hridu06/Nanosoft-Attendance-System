@@ -8,6 +8,7 @@ import {
   CalendarDays,
   BarChart3,
   Settings,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -17,6 +18,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  sub?: NavItem[];
 }
 
 interface NavGroup {
@@ -36,7 +38,18 @@ const navGroups: NavGroup[] = [
     items: [
       { to: "/admin/employees", label: "Employees", icon: Users },
       { to: "/admin/managers", label: "Managers", icon: UserCog },
-      { to: "/admin/projects", label: "Projects", icon: FolderKanban },
+      {
+        to: "/admin/projects",
+        label: "Projects",
+        icon: FolderKanban,
+        sub: [
+          {
+            to: "/admin/projects/contributions",
+            label: "Contributions",
+            icon: ListChecks,
+          },
+        ],
+      },
     ],
   },
   {
@@ -59,11 +72,11 @@ const AdminSidebar = () => {
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200 bg-white shadow-[2px_0_12px_-4px_rgba(15,23,42,0.06)]">
       {/* Logo */}
-      <div className="flex h-16 shrink-0 items-center border-b border-slate-100 px-5">
+      <div className="flex h-20 shrink-0 items-center border-b border-slate-100 px-5">
         <img
           src={logo}
           alt="Nanosoft"
-          className="h-11 w-auto object-contain"
+          className="h-16 w-auto object-contain"
         />
       </div>
 
@@ -76,21 +89,44 @@ const AdminSidebar = () => {
             </p>
 
             <div className="space-y-0.5">
-              {group.items.map(({ to, label, icon: Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `group flex items-center gap-3 rounded-lg border-l-2 px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
-                        : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    }`
-                  }
-                >
-                  <Icon size={17} className="shrink-0" />
-                  <span>{label}</span>
-                </NavLink>
+              {group.items.map(({ to, label, icon: Icon, sub }) => (
+                <div key={to}>
+                  <NavLink
+                    to={to}
+                    end={Boolean(sub)}
+                    className={({ isActive }) =>
+                      `group flex items-center gap-3 rounded-lg border-l-2 px-3 py-2 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "border-blue-600 bg-blue-50 text-blue-700"
+                          : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      }`
+                    }
+                  >
+                    <Icon size={17} className="shrink-0" />
+                    <span>{label}</span>
+                  </NavLink>
+
+                  {sub && (
+                    <div className="mt-0.5 space-y-0.5">
+                      {sub.map((subItem) => (
+                        <NavLink
+                          key={subItem.to}
+                          to={subItem.to}
+                          className={({ isActive }) =>
+                            `flex items-center gap-2.5 rounded-lg border-l-2 py-1.5 pl-9 pr-3 text-[13px] font-medium transition-colors ${
+                              isActive
+                                ? "border-blue-600 bg-blue-50 text-blue-700"
+                                : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                            }`
+                          }
+                        >
+                          <subItem.icon size={15} className="shrink-0" />
+                          <span>{subItem.label}</span>
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>

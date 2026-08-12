@@ -11,7 +11,10 @@ import Dashboard from "../pages/admin/Dashboard";
 import Employees from "../pages/admin/Employees";
 import Managers from "../pages/admin/Managers";
 import Projects from "../pages/admin/Projects";
+import ProjectDetail from "../pages/admin/ProjectDetail";
+import Contributions from "../pages/admin/Contributions";
 import Attendance from "../pages/admin/Attendance";
+import EmployeeAttendanceCalendar from "../pages/admin/EmployeeAttendanceCalendar";
 import Leave from "../pages/admin/Leave";
 import Reports from "../pages/admin/Reports";
 import Settings from "../pages/admin/Settings";
@@ -36,7 +39,13 @@ const AppRoutes = () => {
             <Route path="employees" element={<Employees />} />
             <Route path="managers" element={<Managers />} />
             <Route path="projects" element={<Projects />} />
+            <Route path="projects/contributions" element={<Contributions />} />
+            <Route path="projects/:projectId" element={<ProjectDetail />} />
             <Route path="attendance" element={<Attendance />} />
+            <Route
+              path="attendance/:employeeId"
+              element={<EmployeeAttendanceCalendar />}
+            />
             <Route path="leave" element={<Leave />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
