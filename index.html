@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nanosoft-attendance-system</title>
+    <script>
+      (function () {
+        var stored = localStorage.getItem("nanosoft_theme");
+        var isDark =
+          stored === "dark" ||
+          (stored !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = "dark";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -325,7 +325,7 @@ const Projects = () => {
         title={editingId ? "Edit Project" : "Add Project"}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Project Name
@@ -374,7 +374,7 @@ const Projects = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Start Date

@@ -5,9 +5,12 @@ import {
   ChevronDown,
   LogOut,
   Menu,
+  Moon,
   Search,
+  Sun,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: {
@@ -44,8 +47,13 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   },
 };
 
-const Topbar = () => {
+interface TopbarProps {
+  onMenuClick: () => void;
+}
+
+const Topbar = ({ onMenuClick }: TopbarProps) => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,26 +71,27 @@ const Topbar = () => {
   const displayRole = user?.role ?? "admin";
 
   return (
-    <header className="fixed left-64 right-0 top-0 z-30 h-20 border-b border-slate-200 bg-white">
-      <div className="flex h-full items-center justify-between px-6">
+    <header className="fixed left-0 right-0 top-0 z-30 h-20 border-b border-slate-200 bg-white md:left-64">
+      <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-6">
         {/* Left Section */}
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           {/* Mobile / Sidebar Toggle */}
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            onClick={onMenuClick}
+            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 md:hidden"
             aria-label="Toggle sidebar"
           >
             <Menu size={20} />
           </button>
 
           {/* Page Title */}
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
               {pageTitle}
             </h2>
 
-            <p className="text-xs text-slate-500">
+            <p className="hidden text-xs text-slate-500 sm:block">
               {pageSubtitle}
             </p>
           </div>
@@ -90,6 +99,16 @@ const Topbar = () => {
 
         {/* Right Section */}
         <div className="flex items-center gap-3">
+          {/* Theme Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="rounded-lg p-2.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+
           {/* Search */}
           <button
             type="button"

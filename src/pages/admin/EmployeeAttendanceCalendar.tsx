@@ -108,16 +108,16 @@ const EmployeeAttendanceCalendar = () => {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="text-lg font-medium text-slate-800">
               {monthNames[cursor.month]} {cursor.year}
             </p>
 
-            <p className="text-lg font-semibold text-slate-900">
+            <p className="text-base font-semibold text-slate-900 sm:text-lg">
               {employee?.name ?? "Unknown Employee"}
             </p>
 
-            <div className="flex items-center overflow-hidden rounded-lg border border-slate-300">
+            <div className="flex w-fit items-center overflow-hidden rounded-lg border border-slate-300">
               <button
                 type="button"
                 onClick={() => goToMonth(-1)}
@@ -138,24 +138,26 @@ const EmployeeAttendanceCalendar = () => {
             </div>
           </div>
 
-          {/* Week Day Labels */}
-          <div className="grid grid-cols-7 gap-px bg-slate-200">
-            {weekDays.map((day) => (
-              <div
-                key={day}
-                className="bg-slate-900 py-2.5 text-center text-sm font-semibold text-white"
-              >
-                {day}
+          <div className="overflow-x-auto">
+            <div className="min-w-[640px]">
+              {/* Week Day Labels */}
+              <div className="grid grid-cols-7 gap-px bg-slate-200">
+                {weekDays.map((day) => (
+                  <div
+                    key={day}
+                    className="bg-slate-900 py-2.5 text-center text-sm font-semibold text-white"
+                  >
+                    {day}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Day Cells */}
-          <div className="grid grid-cols-7 gap-px bg-slate-200">
-            {calendarCells.map((day, index) => {
-              if (day === null) {
-                return <div key={`empty-${index}`} className="bg-slate-50" />;
-              }
+              {/* Day Cells */}
+              <div className="grid grid-cols-7 gap-px bg-slate-200">
+                {calendarCells.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`empty-${index}`} className="bg-slate-50" />;
+                  }
 
               const dateKey = `${cursor.year}-${pad(cursor.month + 1)}-${pad(day)}`;
               const record = recordsByDate.get(dateKey);
@@ -204,6 +206,8 @@ const EmployeeAttendanceCalendar = () => {
                 </div>
               );
             })}
+              </div>
+            </div>
           </div>
         </div>
       )}
