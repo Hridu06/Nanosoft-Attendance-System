@@ -7,7 +7,7 @@ import {
 } from "../../services/settingsService";
 
 const Settings = () => {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
 
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
@@ -38,7 +38,6 @@ const Settings = () => {
   const handleProfileSubmit = (event: FormEvent) => {
     event.preventDefault();
 
-    login({ name, email, role: "admin" });
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2500);
   };

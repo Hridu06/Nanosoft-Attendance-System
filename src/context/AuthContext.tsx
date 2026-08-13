@@ -5,44 +5,62 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { clearToken, getToken } from "../services/api";
+import * as authService from "../services/authService";
+import type { ApiUser, AuthUser, Role } from "../types/auth";
 
-export type Role = "admin" | "manager" | "employee";
-
-export interface AuthUser {
-  name: string;
-  email: string;
-  role: Role;
-}
+export type { Role, AuthUser };
 
 interface AuthContextValue {
   user: AuthUser | null;
-  login: (user: AuthUser) => void;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "nanosoft_auth_user";
+const toAuthUser = (apiUser: ApiUser): AuthUser => ({
+  id: apiUser.id,
+  name: apiUser.name,
+  email: apiUser.email,
+  role: apiUser.role,
+});
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as AuthUser) : null;
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    if (!getToken()) {
+      setIsLoading(false);
+      return;
     }
-  }, [user]);
 
-  const login = (authUser: AuthUser) => setUser(authUser);
-  const logout = () => setUser(null);
+    authService
+      .fetchCurrentUser()
+      .then((apiUser) => setUser(toAuthUser(apiUser)))
+      .catch(() => {
+        clearToken();
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    const apiUser = await authService.login(email, password);
+    const authUser = toAuthUser(apiUser);
+    setUser(authUser);
+    return authUser;
+  };
+
+  const logout = () => {
+    setUser(null);
+    void authService.logout();
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,25 +1,39 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { ApiError } from "../../services/api";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
 
-    login({
-      name: identifier.trim() || "Admin User",
-      email: identifier.trim(),
-      role: "admin",
-    });
+    try {
+      const user = await login(identifier.trim(), password);
 
-    navigate("/admin/dashboard", { replace: true });
+      if (user.role !== "admin") {
+        setError("This account does not have access to the admin dashboard.");
+        return;
+      }
+
+      navigate("/admin/dashboard", { replace: true });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Unable to sign in. Please try again.";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,21 +63,28 @@ const Login = () => {
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
-            {/* Email / Employee ID */}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {/* Email */}
             <div>
               <label
                 htmlFor="identifier"
                 className="block text-sm font-medium text-slate-700 mb-2"
               >
-                Email or Employee ID
+                Email
               </label>
 
               <input
                 id="identifier"
-                type="text"
+                type="email"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
-                placeholder="Enter your email or employee ID"
+                placeholder="Enter your email"
+                required
                 className="w-full h-11 px-4 rounded-lg border border-slate-300
                   text-sm text-slate-900 placeholder:text-slate-400
                   outline-none transition
@@ -96,6 +117,7 @@ const Login = () => {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
+                  required
                   className="w-full h-11 px-4 pr-12 rounded-lg border border-slate-300
                     text-sm text-slate-900 placeholder:text-slate-400
                     outline-none transition
@@ -116,12 +138,14 @@ const Login = () => {
             {/* Login Button */}
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full h-11 rounded-lg bg-blue-600
                 text-white text-sm font-semibold
                 hover:bg-blue-700
+                disabled:opacity-60 disabled:cursor-not-allowed
                 transition-colors"
             >
-              Sign In
+              {isSubmitting ? "Signing In..." : "Sign In"}
             </button>
           </form>
         </div>
