@@ -9,6 +9,7 @@ import Login from "../pages/auth/Login";
 import AdminLayout from "../layouts/AdminLayout";
 import Dashboard from "../pages/admin/Dashboard";
 import Employees from "../pages/admin/Employees";
+import EmployeeProfile from "../pages/employees/profile";
 import Managers from "../pages/admin/Managers";
 import Projects from "../pages/admin/Projects";
 import ProjectDetail from "../pages/admin/ProjectDetail";
@@ -37,6 +38,7 @@ const AppRoutes = () => {
 
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="employees" element={<Employees />} />
+            <Route path="employees/:employeeId" element={<EmployeeProfile />} />
             <Route path="managers" element={<Managers />} />
             <Route path="projects" element={<Projects />} />
             <Route path="projects/contributions" element={<Contributions />} />

@@ -20,6 +20,7 @@ const Settings = () => {
 
   const [presentHours, setPresentHours] = useState(6);
   const [halfDayHours, setHalfDayHours] = useState(3);
+  const [officeStartTime, setOfficeStartTime] = useState("09:30");
   const [thresholdError, setThresholdError] = useState("");
   const [thresholdSaved, setThresholdSaved] = useState(false);
   const [loadingThresholds, setLoadingThresholds] = useState(true);
@@ -29,6 +30,7 @@ const Settings = () => {
       const thresholds = await getAttendanceThresholds();
       setPresentHours(thresholds.presentHours);
       setHalfDayHours(thresholds.halfDayHours);
+      setOfficeStartTime(thresholds.officeStartTime);
       setLoadingThresholds(false);
     };
 
@@ -74,7 +76,7 @@ const Settings = () => {
     }
 
     setThresholdError("");
-    await updateAttendanceThresholds({ presentHours, halfDayHours });
+    await updateAttendanceThresholds({ presentHours, halfDayHours, officeStartTime });
     setThresholdSaved(true);
     setTimeout(() => setThresholdSaved(false), 2500);
   };
@@ -277,6 +279,22 @@ const Settings = () => {
                   Below present but ≥ this many hours counts as Half Day.
                 </p>
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Office Start Time
+              </label>
+              <input
+                required
+                type="time"
+                value={officeStartTime}
+                onChange={(event) => setOfficeStartTime(event.target.value)}
+                className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+              <p className="mt-1.5 text-xs text-slate-400">
+                Contributions starting after this time count as a Late arrival.
+              </p>
             </div>
 
             {thresholdError && (

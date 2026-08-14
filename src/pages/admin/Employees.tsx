@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import Modal from "../../components/common/Modal";
 import {
@@ -225,9 +226,12 @@ const Employees = () => {
                         </div>
 
                         <div>
-                          <p className="text-sm font-medium text-slate-800">
+                          <Link
+                            to={`/admin/employees/${employee.id}`}
+                            className="text-sm font-medium text-slate-800 hover:text-blue-600 hover:underline"
+                          >
                             {employee.name}
-                          </p>
+                          </Link>
                           <p className="text-xs text-slate-500">
                             {employee.email}
                           </p>

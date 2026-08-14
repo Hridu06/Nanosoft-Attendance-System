@@ -13,12 +13,14 @@ import type { Project } from "../../types/project";
 
 const statusStyles: Record<AttendanceStatus, string> = {
   present: "bg-emerald-50 text-emerald-600",
+  late: "bg-orange-50 text-orange-600",
   "half-day": "bg-amber-50 text-amber-600",
   absent: "bg-red-50 text-red-600",
 };
 
 const statusLabels: Record<AttendanceStatus, string> = {
   present: "Present",
+  late: "Late",
   "half-day": "Half Day",
   absent: "Absent",
 };
@@ -87,7 +89,7 @@ const Attendance = () => {
         acc[record.status] += 1;
         return acc;
       },
-      { present: 0, "half-day": 0, absent: 0 } as Record<AttendanceStatus, number>,
+      { present: 0, late: 0, "half-day": 0, absent: 0 } as Record<AttendanceStatus, number>,
     );
   }, [filteredRecords]);
 
@@ -102,7 +104,7 @@ const Attendance = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -113,6 +115,20 @@ const Attendance = () => {
             </div>
             <div className="rounded-lg bg-emerald-50 p-2.5 text-emerald-600">
               <UserCheck size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Late</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {summary.late}
+              </p>
+            </div>
+            <div className="rounded-lg bg-orange-50 p-2.5 text-orange-600">
+              <Clock3 size={22} />
             </div>
           </div>
         </div>

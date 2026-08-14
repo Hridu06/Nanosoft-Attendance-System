@@ -7,6 +7,8 @@ export interface Project {
   description: string;
   status: ProjectStatus;
   startDate: string;
+  endDate: string;
+  progress: number;
   employeeIds: string[];
 }
 

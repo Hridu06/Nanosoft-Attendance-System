@@ -46,13 +46,13 @@ const Login = () => {
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Attendance Management System
+            Project Management System
           </p>
         </div>
 
         {/* Login Card */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8">
-          <div className="mb-7">
+          <div className="mb-7 text-center">
             <h2 className="text-2xl font-semibold text-slate-900">
               Welcome Back
             </h2>

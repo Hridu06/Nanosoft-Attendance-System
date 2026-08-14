@@ -7,6 +7,15 @@ import {
   UserCheck,
   Users,
   UserX,
+  ChartBar,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  PlusCircle,
+  MoreVertical,
+  Calendar,
+  TrendingUp,
+  Briefcase,
 } from "lucide-react";
 import { getEmployees } from "../../services/employeeService";
 import { getProjects } from "../../services/projectService";
@@ -30,6 +39,7 @@ const Dashboard = () => {
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<string>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +100,16 @@ const Dashboard = () => {
     [employees],
   );
 
+  const activeProjects = useMemo(
+    () => projects.filter((project) => project.status === "active"),
+    [projects],
+  );
+
+  const completedProjects = useMemo(
+    () => projects.filter((project) => project.status === "completed"),
+    [projects],
+  );
+
   const onLeaveToday = useMemo(() => {
     if (!latestDate) return 0;
 
@@ -109,23 +129,45 @@ const Dashboard = () => {
     (record) => record.status === "half-day",
   ).length;
 
+  const lateCount = todaysRecords.filter(
+    (record) => record.status === "late",
+  ).length;
+
   const absentCount = Math.max(
     activeEmployees.length - todaysRecords.length - onLeaveToday,
     0,
   );
 
-  const attendanceRate =
-    activeEmployees.length > 0
-      ? ((presentCount + halfDayCount) / activeEmployees.length) * 100
-      : 0;
+  // Project Statistics
+  const projectStats = useMemo(() => {
+    return activeProjects.map(project => {
+      const projectContributions = contributions.filter(
+        c => c.projectId === project.id
+      );
+      
+      const uniqueEmployees = new Set(
+        projectContributions.map(c => c.employeeId)
+      );
 
-  const activeProjectsCount = projects.filter(
-    (project) => project.status === "active",
-  ).length;
+      const totalHours = projectContributions.reduce((total, c) => {
+        const [startHour, startMinute] = c.startTime.split(":").map(Number);
+        const [endHour, endMinute] = c.endTime.split(":").map(Number);
+        const durationMinutes = endHour * 60 + endMinute - (startHour * 60 + startMinute);
+        return total + Math.max(durationMinutes, 0);
+      }, 0);
 
-  const workingNow = todaysRecords.filter(
-    (record) => record.status !== "absent",
-  );
+      return {
+        ...project,
+        totalContributors: uniqueEmployees.size,
+        totalHours: Math.round(totalHours / 60),
+        totalContributions: projectContributions.length,
+      };
+    });
+  }, [activeProjects, contributions]);
+
+  const totalProjectHours = useMemo(() => {
+    return projectStats.reduce((total, p) => total + p.totalHours, 0);
+  }, [projectStats]);
 
   const recentContributions = useMemo(
     () =>
@@ -134,6 +176,12 @@ const Dashboard = () => {
         .slice(0, 5),
     [contributions],
   );
+
+  // Filter contributions by selected project
+  const filteredContributions = useMemo(() => {
+    if (selectedProject === "all") return recentContributions;
+    return recentContributions.filter(c => c.projectId === selectedProject);
+  }, [recentContributions, selectedProject]);
 
   if (loading) {
     return (
@@ -148,24 +196,41 @@ const Dashboard = () => {
       {/* Page Header */}
       <div>
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-          Dashboard
+          Project Dashboard
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
-          Here's what's happening with attendance
-          {latestDate ? ` as of ${latestDate}` : ""}.
+          Overview of all projects, team performance, and attendance
         </p>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Project Focused */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          title="Total Employees"
-          value={String(employees.length)}
-          subtitle={`${activeEmployees.length} active employees`}
+          title="Active Projects"
+          value={String(activeProjects.length)}
+          subtitle={`${completedProjects.length} completed`}
+          icon={<FolderKanban size={22} />}
+          iconBg="bg-violet-50"
+          iconColor="text-violet-600"
+        />
+
+        <SummaryCard
+          title="Team Members"
+          value={String(activeEmployees.length)}
+          subtitle={`${employees.length - activeEmployees.length} inactive`}
           icon={<Users size={22} />}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
+        />
+
+        <SummaryCard
+          title="Total Hours"
+          value={`${totalProjectHours}h`}
+          subtitle="Across all projects"
+          icon={<Clock3 size={22} />}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
         />
 
         <SummaryCard
@@ -173,168 +238,170 @@ const Dashboard = () => {
           value={String(presentCount)}
           subtitle={
             activeEmployees.length > 0
-              ? `${((presentCount / activeEmployees.length) * 100).toFixed(1)}% of employees`
+              ? `${((presentCount / activeEmployees.length) * 100).toFixed(1)}% attendance`
               : "No active employees"
           }
           icon={<UserCheck size={22} />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
         />
-
-        <SummaryCard
-          title="Absent Today"
-          value={String(absentCount)}
-          subtitle={
-            activeEmployees.length > 0
-              ? `${((absentCount / activeEmployees.length) * 100).toFixed(1)}% of employees`
-              : "No active employees"
-          }
-          icon={<UserX size={22} />}
-          iconBg="bg-red-50"
-          iconColor="text-red-600"
-        />
-
-        <SummaryCard
-          title="Active Projects"
-          value={String(activeProjectsCount)}
-          subtitle="Currently running"
-          icon={<FolderKanban size={22} />}
-          iconBg="bg-violet-50"
-          iconColor="text-violet-600"
-        />
       </div>
 
-      {/* Attendance + Contribution */}
+      {/* Project Progress & Attendance Grid */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Attendance Overview */}
+        {/* Project Progress */}
         <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 xl:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Today's Attendance
+                Project Progress
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
-                Attendance summary for the latest working day
+                Active projects and their contribution
               </p>
             </div>
-
-            <CalendarCheck
-              size={21}
-              className="shrink-0 text-slate-400"
-            />
+            <ChartBar size={21} className="shrink-0 text-slate-400" />
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mt-6 space-y-4">
+            {projectStats.length === 0 && (
+              <div className="py-8 text-center text-sm text-slate-400">
+                No active projects
+              </div>
+            )}
+            {projectStats.slice(0, 4).map((project) => {
+              const progress = Math.min((project.totalContributions / 100) * 100, 100);
+              
+              return (
+                <div key={project.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-medium text-slate-800 truncate">
+                        {project.name}
+                      </span>
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                        {project.totalContributors} members
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900 shrink-0 ml-2">
+                      {project.totalHours}h
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-500"
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>{project.totalContributions} contributions</span>
+                    <span>{progress.toFixed(0)}% progress</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Attendance Overview */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">
+                Attendance
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Today's status
+              </p>
+            </div>
+            <CalendarCheck size={21} className="shrink-0 text-slate-400" />
+          </div>
+
+          <div className="mt-6 space-y-3">
             <AttendanceItem
               label="Present"
               value={String(presentCount)}
               color="bg-emerald-500"
             />
-
             <AttendanceItem
               label="Half Day"
               value={String(halfDayCount)}
               color="bg-amber-500"
             />
-
+            <AttendanceItem
+              label="Late"
+              value={String(lateCount)}
+              color="bg-orange-500"
+            />
             <AttendanceItem
               label="Absent"
               value={String(absentCount)}
               color="bg-red-500"
             />
-
             <AttendanceItem
               label="On Leave"
               value={String(onLeaveToday)}
               color="bg-blue-500"
             />
           </div>
-
-          {/* Simple Progress */}
-          <div className="mt-8">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">
-                Attendance Rate
-              </span>
-
-              <span className="text-sm font-semibold text-slate-900">
-                {attendanceRate.toFixed(1)}%
-              </span>
-            </div>
-
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-emerald-500"
-                style={{ width: `${Math.min(attendanceRate, 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Working Now */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-50 p-2.5 text-blue-600">
-              <Clock3 size={21} />
-            </div>
-
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">
-                Working Now
-              </h2>
-
-              <p className="text-sm text-slate-500">
-                Currently contributing
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <p className="text-3xl font-bold text-slate-900">
-              {workingNow.length}
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              employees are currently working
-            </p>
-          </div>
-
-          <div className="mt-6 flex flex-wrap -space-x-2">
-            {workingNow.slice(0, 5).map((record) => {
-              const employee = employeeMap.get(record.employeeId);
-              const initial = (employee?.name || "?").charAt(0).toUpperCase();
-
-              return (
-                <div
-                  key={record.employeeId}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-xs font-semibold text-white"
-                  title={employee?.name}
-                >
-                  {initial}
-                </div>
-              );
-            })}
-
-            {workingNow.length > 5 && (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-xs font-semibold text-slate-600">
-                +{workingNow.length - 5}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <QuickStat
+          icon={<UserCheck className="text-emerald-500" size={18} />}
+          label="Present"
+          value={String(presentCount)}
+          color="emerald"
+        />
+        <QuickStat
+          icon={<Clock className="text-orange-500" size={18} />}
+          label="Late"
+          value={String(lateCount)}
+          color="orange"
+        />
+        <QuickStat
+          icon={<AlertCircle className="text-red-500" size={18} />}
+          label="Absent"
+          value={String(absentCount)}
+          color="red"
+        />
+        <QuickStat
+          icon={<Calendar className="text-blue-500" size={18} />}
+          label="On Leave"
+          value={String(onLeaveToday)}
+          color="blue"
+        />
+      </div>
+
+      {/* Recent Activity with Project Filter */}
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-          <h2 className="text-base font-semibold text-slate-900">
-            Recent Contribution Activity
-          </h2>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Latest project contributions
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">
+                Recent Contributions
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Latest project activities
+              </p>
+            </div>
+            
+            {/* Project Filter */}
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All Projects</option>
+              {activeProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -344,19 +411,15 @@ const Dashboard = () => {
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Employee
                 </th>
-
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Project
                 </th>
-
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Task
                 </th>
-
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Duration
                 </th>
-
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Status
                 </th>
@@ -364,18 +427,18 @@ const Dashboard = () => {
             </thead>
 
             <tbody>
-              {recentContributions.length === 0 && (
+              {filteredContributions.length === 0 && (
                 <tr>
                   <td
                     colSpan={5}
                     className="px-6 py-8 text-center text-sm text-slate-400"
                   >
-                    No recent contributions.
+                    No recent contributions found.
                   </td>
                 </tr>
               )}
 
-              {recentContributions.map((contribution) => {
+              {filteredContributions.map((contribution) => {
                 const employee = employeeMap.get(contribution.employeeId);
                 const project = projectMap.get(contribution.projectId);
                 const [startHour, startMinute] = contribution.startTime
@@ -406,6 +469,7 @@ const Dashboard = () => {
   );
 };
 
+// Component Interfaces
 interface SummaryCardProps {
   title: string;
   value: string;
@@ -415,66 +479,18 @@ interface SummaryCardProps {
   iconColor: string;
 }
 
-const SummaryCard = ({
-  title,
-  value,
-  subtitle,
-  icon,
-  iconBg,
-  iconColor,
-}: SummaryCardProps) => {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-slate-500">
-            {title}
-          </p>
-
-          <p className="mt-2 text-2xl font-bold text-slate-900">
-            {value}
-          </p>
-
-          <p className="mt-1 text-xs text-slate-400">
-            {subtitle}
-          </p>
-        </div>
-
-        <div className={`shrink-0 rounded-lg p-2.5 ${iconBg} ${iconColor}`}>
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 interface AttendanceItemProps {
   label: string;
   value: string;
   color: string;
 }
 
-const AttendanceItem = ({
-  label,
-  value,
-  color,
-}: AttendanceItemProps) => {
-  return (
-    <div className="rounded-lg bg-slate-50 p-4">
-      <div className="flex items-center gap-2">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
-
-        <span className="text-sm text-slate-500">
-          {label}
-        </span>
-      </div>
-
-      <p className="mt-2 text-xl font-bold text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-};
+interface QuickStatProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: string;
+}
 
 interface ActivityRowProps {
   employee: string;
@@ -484,6 +500,64 @@ interface ActivityRowProps {
   duration: string;
 }
 
+// Component Definitions
+const SummaryCard = ({
+  title,
+  value,
+  subtitle,
+  icon,
+  iconBg,
+  iconColor,
+}: SummaryCardProps) => {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-slate-500">{title}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+          <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+        </div>
+        <div className={`shrink-0 rounded-lg p-2.5 ${iconBg} ${iconColor}`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AttendanceItem = ({ label, value, color }: AttendanceItemProps) => {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-2.5">
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
+        <span className="text-sm text-slate-600">{label}</span>
+      </div>
+      <p className="text-sm font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+};
+
+const QuickStat = ({ icon, label, value, color }: QuickStatProps) => {
+  const colorClasses = {
+    emerald: "bg-emerald-50 text-emerald-600",
+    orange: "bg-orange-50 text-orange-600",
+    red: "bg-red-50 text-red-600",
+    blue: "bg-blue-50 text-blue-600",
+  };
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+      <div className={`rounded-lg p-2 ${colorClasses[color as keyof typeof colorClasses]}`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-base font-semibold text-slate-900">{value}</p>
+      </div>
+    </div>
+  );
+};
+
 const ActivityRow = ({
   employee,
   initial,
@@ -492,33 +566,21 @@ const ActivityRow = ({
   duration,
 }: ActivityRowProps) => {
   return (
-    <tr className="border-b border-slate-100 last:border-0">
+    <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold text-blue-600">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">
             {initial}
           </div>
-
-          <span className="text-sm font-medium text-slate-800">
-            {employee}
-          </span>
+          <span className="text-sm font-medium text-slate-800">{employee}</span>
         </div>
       </td>
-
-      <td className="px-6 py-4 text-sm text-slate-600">
-        {project}
-      </td>
-
-      <td className="px-6 py-4 text-sm text-slate-600">
-        {task}
-      </td>
-
-      <td className="px-6 py-4 text-sm font-medium text-slate-700">
-        {duration}
-      </td>
-
+      <td className="px-6 py-4 text-sm text-slate-600">{project}</td>
+      <td className="px-6 py-4 text-sm text-slate-600">{task}</td>
+      <td className="px-6 py-4 text-sm font-medium text-slate-700">{duration}</td>
       <td className="px-6 py-4">
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Active
         </span>
       </td>

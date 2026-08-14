@@ -9,7 +9,7 @@ import {
 } from "../../services/contributionService";
 import { getEmployees } from "../../services/employeeService";
 import { getProjects } from "../../services/projectService";
-import type { Contribution } from "../../types/attendance";
+import type { Contribution, ContributionStatus } from "../../types/attendance";
 import type { Employee } from "../../types/employee";
 import type { Project } from "../../types/project";
 
@@ -29,6 +29,18 @@ const formatDuration = (startTime: string, endTime: string): string => {
   return `${hours}h ${minutes}m`;
 };
 
+const contributionStatusStyles: Record<ContributionStatus, string> = {
+  completed: "bg-emerald-50 text-emerald-600",
+  "in-progress": "bg-amber-50 text-amber-600",
+  pending: "bg-slate-100 text-slate-500",
+};
+
+const contributionStatusLabels: Record<ContributionStatus, string> = {
+  completed: "Completed",
+  "in-progress": "In Progress",
+  pending: "Pending",
+};
+
 const emptyForm: ContributionInput = {
   employeeId: "",
   projectId: "",
@@ -36,6 +48,7 @@ const emptyForm: ContributionInput = {
   startTime: "09:00",
   endTime: "17:00",
   task: "",
+  status: "pending",
 };
 
 const Contributions = () => {
@@ -236,6 +249,9 @@ const Contributions = () => {
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Task
                 </th>
+                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Status
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Actions
                 </th>
@@ -245,7 +261,7 @@ const Contributions = () => {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-slate-400">
                     Loading contributions...
                   </td>
                 </tr>
@@ -253,7 +269,7 @@ const Contributions = () => {
 
               {!loading && filteredContributions.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-14">
+                  <td colSpan={8} className="px-6 py-14">
                     <div className="flex flex-col items-center gap-2 text-center">
                       <Clock3 size={22} className="text-slate-300" />
                       <p className="text-sm font-medium text-slate-500">
@@ -304,6 +320,14 @@ const Contributions = () => {
 
                     <td className="max-w-[200px] px-6 py-4 text-sm text-slate-600">
                       <p className="line-clamp-1">{contribution.task}</p>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${contributionStatusStyles[contribution.status]}`}
+                      >
+                        {contributionStatusLabels[contribution.status]}
+                      </span>
                     </td>
 
                     <td className="px-6 py-4 text-right">
@@ -443,6 +467,26 @@ const Contributions = () => {
               placeholder="What was worked on?"
               className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Status
+            </label>
+            <select
+              value={form.status}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  status: event.target.value as ContributionStatus,
+                }))
+              }
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="pending">Pending</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

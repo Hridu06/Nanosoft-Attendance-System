@@ -15,8 +15,9 @@ const calculateStatus = (
   totalMinutes: number,
   presentThresholdMin: number,
   halfDayThresholdMin: number,
+  isLateArrival: boolean,
 ): AttendanceStatus => {
-  if (totalMinutes >= presentThresholdMin) return "present";
+  if (totalMinutes >= presentThresholdMin) return isLateArrival ? "late" : "present";
   if (totalMinutes >= halfDayThresholdMin) return "half-day";
   return "absent";
 };
@@ -29,6 +30,7 @@ export const getAttendanceRecords = async (): Promise<AttendanceRecord[]> => {
 
   const presentThresholdMin = thresholds.presentHours * 60;
   const halfDayThresholdMin = thresholds.halfDayHours * 60;
+  const officeStartMin = toMinutes(thresholds.officeStartTime);
 
   const grouped = new Map<string, Contribution[]>();
 
@@ -49,11 +51,21 @@ export const getAttendanceRecords = async (): Promise<AttendanceRecord[]> => {
       0,
     );
 
+    const earliestStartMin = Math.min(
+      ...items.map((item) => toMinutes(item.startTime)),
+    );
+    const isLateArrival = earliestStartMin > officeStartMin;
+
     records.push({
       employeeId,
       date,
       totalMinutes,
-      status: calculateStatus(totalMinutes, presentThresholdMin, halfDayThresholdMin),
+      status: calculateStatus(
+        totalMinutes,
+        presentThresholdMin,
+        halfDayThresholdMin,
+        isLateArrival,
+      ),
       projectIds: [...new Set(items.map((item) => item.projectId))],
       contributions: items,
     });

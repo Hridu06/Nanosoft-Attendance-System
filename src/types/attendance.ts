@@ -1,4 +1,6 @@
-export type AttendanceStatus = "present" | "half-day" | "absent";
+export type AttendanceStatus = "present" | "late" | "half-day" | "absent";
+
+export type ContributionStatus = "pending" | "in-progress" | "completed";
 
 export interface Contribution {
   id: string;
@@ -8,6 +10,7 @@ export interface Contribution {
   startTime: string;
   endTime: string;
   task: string;
+  status: ContributionStatus;
 }
 
 export interface AttendanceRecord {

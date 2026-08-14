@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { FolderKanban, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  FolderKanban,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import Modal from "../../components/common/Modal";
 import {
   createProject,
@@ -18,6 +25,8 @@ const emptyForm: ProjectFormInput = {
   description: "",
   status: "active",
   startDate: new Date().toISOString().slice(0, 10),
+  endDate: "",
+  progress: 0,
   employeeIds: [],
 };
 
@@ -44,6 +53,9 @@ const Projects = () => {
   const [form, setForm] = useState<ProjectFormInput>(emptyForm);
   const [saving, setSaving] = useState(false);
 
+  const [employeeMenuOpen, setEmployeeMenuOpen] = useState(false);
+  const employeeMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const load = async () => {
       const [projectList, employeeList] = await Promise.all([
@@ -58,6 +70,22 @@ const Projects = () => {
 
     load();
   }, []);
+
+  useEffect(() => {
+    if (!employeeMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        employeeMenuRef.current &&
+        !employeeMenuRef.current.contains(event.target as Node)
+      ) {
+        setEmployeeMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [employeeMenuOpen]);
 
   const employeeMap = useMemo(() => {
     const map = new Map<string, Employee>();
@@ -80,6 +108,7 @@ const Projects = () => {
   const openCreateModal = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setEmployeeMenuOpen(false);
     setModalOpen(true);
   };
 
@@ -91,8 +120,11 @@ const Projects = () => {
       description: project.description,
       status: project.status,
       startDate: project.startDate,
+      endDate: project.endDate,
+      progress: project.progress,
       employeeIds: project.employeeIds,
     });
+    setEmployeeMenuOpen(false);
     setModalOpen(true);
   };
 
@@ -174,7 +206,7 @@ const Projects = () => {
       {/* Table */}
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left">
+          <table className="w-full min-w-[1020px] text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -190,6 +222,12 @@ const Projects = () => {
                   Start Date
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  End Date
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Progress
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -201,7 +239,7 @@ const Projects = () => {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-slate-400">
                     Loading projects...
                   </td>
                 </tr>
@@ -209,7 +247,7 @@ const Projects = () => {
 
               {!loading && filteredProjects.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-14">
+                  <td colSpan={8} className="px-6 py-14">
                     <div className="flex flex-col items-center gap-2 text-center">
                       <FolderKanban size={22} className="text-slate-300" />
                       <p className="text-sm font-medium text-slate-500">
@@ -280,6 +318,28 @@ const Projects = () => {
 
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {project.startDate}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {project.endDate || (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-blue-600"
+                            style={{
+                              width: `${Math.min(100, Math.max(0, project.progress))}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-slate-600">
+                          {project.progress}%
+                        </span>
+                      </div>
                     </td>
 
                     <td className="px-6 py-4">
@@ -395,6 +455,48 @@ const Projects = () => {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={form.endDate}
+                min={form.startDate || undefined}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    endDate: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {editingId && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Progress ({form.progress}%)
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={form.progress}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      progress: Number(event.target.value),
+                    }))
+                  }
+                  className="w-full accent-blue-600"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Status
               </label>
               <select
@@ -414,36 +516,61 @@ const Projects = () => {
             </div>
           </div>
 
-          <div>
+          <div className="relative" ref={employeeMenuRef}>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Assign Employees
             </label>
 
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
-              {employees.length === 0 && (
-                <p className="px-2 py-1.5 text-sm text-slate-400">
-                  No employees available
-                </p>
-              )}
+            <button
+              type="button"
+              onClick={() => setEmployeeMenuOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-left text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <span
+                className={
+                  form.employeeIds.length === 0 ? "text-slate-400" : undefined
+                }
+              >
+                {form.employeeIds.length === 0
+                  ? "Select employees"
+                  : form.employeeIds
+                      .map((id) => employeeMap.get(id)?.name)
+                      .filter(Boolean)
+                      .join(", ")}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`shrink-0 text-slate-400 transition-transform ${employeeMenuOpen ? "rotate-180" : ""}`}
+              />
+            </button>
 
-              {employees.map((employee) => (
-                <label
-                  key={employee.id}
-                  className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.employeeIds.includes(employee.id)}
-                    onChange={() => toggleEmployee(employee.id)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  {employee.name}
-                  <span className="text-xs text-slate-400">
-                    {employee.department}
-                  </span>
-                </label>
-              ))}
-            </div>
+            {employeeMenuOpen && (
+              <div className="absolute z-10 mt-1.5 max-h-48 w-full space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                {employees.length === 0 && (
+                  <p className="px-2 py-1.5 text-sm text-slate-400">
+                    No employees available
+                  </p>
+                )}
+
+                {employees.map((employee) => (
+                  <label
+                    key={employee.id}
+                    className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.employeeIds.includes(employee.id)}
+                      onChange={() => toggleEmployee(employee.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    {employee.name}
+                    <span className="text-xs text-slate-400">
+                      {employee.department}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
