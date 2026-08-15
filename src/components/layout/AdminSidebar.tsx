@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
+  Users2,
   FolderKanban,
   Clock3,
   CalendarDays,
@@ -39,6 +40,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: "/admin/employees", label: "Employees", icon: Users },
       { to: "/admin/managers", label: "Managers", icon: UserCog },
+      { to: "/admin/teams", label: "Teams", icon: Users2 },
       {
         to: "/admin/projects",
         label: "Projects",
