@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  Clock3,
-  FolderKanban,
-  Plus,
-  Trash2,
-  Users,
+  BarChart3,
   Calendar,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
   Download,
   Edit2,
-  Filter,
+  FolderKanban,
+  ListChecks,
+  Loader2,
+  Plus,
   Search,
-  TrendingUp,
-  UserCheck,
-  BarChart3,
+  Settings as SettingsIcon,
+  Trash2,
+  Users,
 } from "lucide-react";
 import Modal from "../../components/common/Modal";
-import { getProjects } from "../../services/projectService";
+import {
+  deleteProject,
+  getProjects,
+  updateProject,
+} from "../../services/projectService";
 import { getEmployees } from "../../services/employeeService";
 import {
   createContribution,
@@ -26,9 +35,14 @@ import {
   updateContribution,
   type ContributionInput,
 } from "../../services/contributionService";
-import type { Project, ProjectStatus } from "../../types/project";
+import type { Project, ProjectFormInput, ProjectStatus } from "../../types/project";
 import type { Employee } from "../../types/employee";
-import type { Contribution, ContributionStatus } from "../../types/attendance";
+import type {
+  Contribution,
+  ContributionPriority,
+  ContributionStatus,
+  ContributionType,
+} from "../../types/attendance";
 
 const statusStyles: Record<ProjectStatus, string> = {
   active: "bg-emerald-50 text-emerald-600",
@@ -54,28 +68,57 @@ const contributionStatusLabels: Record<ContributionStatus, string> = {
   pending: "Pending",
 };
 
+const contributionBarColors: Record<ContributionStatus, string> = {
+  completed: "bg-emerald-500",
+  "in-progress": "bg-amber-500",
+  pending: "bg-slate-400",
+};
+
+const contributionTypeLabels: Record<ContributionType, string> = {
+  task: "Task",
+  bug: "Bug",
+  feature: "Feature",
+  improvement: "Improvement",
+};
+
+const contributionTypeStyles: Record<ContributionType, string> = {
+  task: "bg-blue-50 text-blue-600",
+  bug: "bg-red-50 text-red-600",
+  feature: "bg-violet-50 text-violet-600",
+  improvement: "bg-teal-50 text-teal-600",
+};
+
+const contributionPriorityLabels: Record<ContributionPriority, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+const contributionPriorityStyles: Record<ContributionPriority, string> = {
+  low: "bg-slate-100 text-slate-500",
+  medium: "bg-amber-50 text-amber-600",
+  high: "bg-red-50 text-red-600",
+};
+
+const getTitle = (contribution: Contribution): string =>
+  contribution.title?.trim() || contribution.task;
+
+const getType = (contribution: Contribution): ContributionType =>
+  contribution.type ?? "task";
+
+const getPriority = (contribution: Contribution): ContributionPriority =>
+  contribution.priority ?? "medium";
+
 const toMinutes = (time: string): number => {
   const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
 };
 
-const formatDuration = (startTime: string, endTime: string): string => {
-  const totalMinutes = toMinutes(endTime) - toMinutes(startTime);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (totalMinutes <= 0) return "0m";
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
-};
-
-const formatDurationHours = (minutes: number): string => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours === 0) return `${mins}m`;
-  if (mins === 0) return `${hours}h`;
-  return `${hours}h ${mins}m`;
+const formatDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const emptyForm = (defaultEmployeeId: string): ContributionInput => ({
@@ -84,9 +127,23 @@ const emptyForm = (defaultEmployeeId: string): ContributionInput => ({
   date: new Date().toISOString().slice(0, 10),
   startTime: "09:00",
   endTime: "17:00",
+  title: "",
   task: "",
+  type: "task",
+  priority: "medium",
   status: "pending",
 });
+
+type TabId = "tasks" | "calendar" | "analytics" | "settings";
+
+const TABS: { id: TabId; label: string; icon: typeof ListChecks }[] = [
+  { id: "tasks", label: "Tasks", icon: ListChecks },
+  { id: "calendar", label: "Calendar", icon: Calendar },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
+];
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const ProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -97,7 +154,9 @@ const ProjectDetail = () => {
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal states
+  const [activeTab, setActiveTab] = useState<TabId>("tasks");
+
+  // Contribution modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<ContributionInput>(emptyForm(""));
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -109,6 +168,22 @@ const ProjectDetail = () => {
   const [filterEmployee, setFilterEmployee] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>("");
 
+  // Calendar tab state
+  const today = useMemo(() => new Date(), []);
+  const [calendarMonth, setCalendarMonth] = useState(() => ({
+    year: today.getFullYear(),
+    month: today.getMonth(),
+  }));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Settings tab state
+  const [settingsForm, setSettingsForm] = useState<ProjectFormInput | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [employeeMenuOpen, setEmployeeMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const employeeMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const load = async () => {
       if (!projectId) return;
@@ -119,14 +194,44 @@ const ProjectDetail = () => {
         getContributionsByProject(projectId),
       ]);
 
-      setProject(projectList.find((item) => item.id === projectId) ?? null);
+      const found = projectList.find((item) => item.id === projectId) ?? null;
+      setProject(found);
       setEmployees(employeeList);
       setContributions(contributionList);
       setLoading(false);
+
+      if (found) {
+        setSettingsForm({
+          name: found.name,
+          client: found.client,
+          description: found.description,
+          status: found.status,
+          startDate: found.startDate,
+          endDate: found.endDate,
+          progress: found.progress,
+          employeeIds: found.employeeIds,
+        });
+      }
     };
 
     load();
   }, [projectId]);
+
+  useEffect(() => {
+    if (!employeeMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        employeeMenuRef.current &&
+        !employeeMenuRef.current.contains(event.target as Node)
+      ) {
+        setEmployeeMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [employeeMenuOpen]);
 
   const employeeMap = useMemo(() => {
     const map = new Map<string, Employee>();
@@ -151,15 +256,19 @@ const ProjectDetail = () => {
 
     const uniqueEmployees = new Set(contributions.map(c => c.employeeId));
 
+    const completed = contributions.filter((c) => c.status === "completed").length;
+    const inProgress = contributions.filter((c) => c.status === "in-progress").length;
+    const pending = contributions.filter((c) => c.status === "pending").length;
+
     // Employee-wise summary
     const employeeSummary = new Map<string, { name: string; count: number; minutes: number }>();
     for (const c of contributions) {
       const emp = employeeMap.get(c.employeeId);
       if (!emp) continue;
-      
+
       const existing = employeeSummary.get(c.employeeId);
       const duration = Math.max(toMinutes(c.endTime) - toMinutes(c.startTime), 0);
-      
+
       if (existing) {
         existing.count++;
         existing.minutes += duration;
@@ -177,11 +286,16 @@ const ProjectDetail = () => {
       totalHours: Math.round(totalMinutes / 60),
       totalMinutes,
       uniqueEmployees: uniqueEmployees.size,
-      employeeSummary: Array.from(employeeSummary.entries()).map(([id, data]) => ({
-        id,
-        ...data,
-        hours: Math.round(data.minutes / 60),
-      })),
+      completed,
+      inProgress,
+      pending,
+      employeeSummary: Array.from(employeeSummary.entries())
+        .map(([id, data]) => ({
+          id,
+          ...data,
+          hours: Math.round(data.minutes / 60),
+        }))
+        .sort((a, b) => b.minutes - a.minutes),
     };
   }, [contributions, employeeMap]);
 
@@ -193,7 +307,8 @@ const ProjectDetail = () => {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(c => {
         const emp = employeeMap.get(c.employeeId);
-        return emp?.name.toLowerCase().includes(term) || 
+        return emp?.name.toLowerCase().includes(term) ||
+               getTitle(c).toLowerCase().includes(term) ||
                c.task.toLowerCase().includes(term);
       });
     }
@@ -209,6 +324,84 @@ const ProjectDetail = () => {
     return filtered.sort((a, b) => a.date.localeCompare(b.date) ||
       toMinutes(a.startTime) - toMinutes(b.startTime));
   }, [contributions, searchTerm, filterEmployee, filterDate, employeeMap]);
+
+  // Calendar computations
+  const contributionsByDate = useMemo(() => {
+    const map = new Map<string, Contribution[]>();
+    for (const c of contributions) {
+      const list = map.get(c.date);
+      if (list) list.push(c);
+      else map.set(c.date, [c]);
+    }
+    return map;
+  }, [contributions]);
+
+  const calendarWeeks = useMemo(() => {
+    const { year, month } = calendarMonth;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startOffset = new Date(year, month, 1).getDay();
+
+    const cells: (string | null)[] = Array(startOffset).fill(null);
+    for (let day = 1; day <= daysInMonth; day++) {
+      cells.push(formatDateKey(new Date(year, month, day)));
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const weeks: (string | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return weeks;
+  }, [calendarMonth]);
+
+  const monthLabel = useMemo(
+    () =>
+      new Date(calendarMonth.year, calendarMonth.month, 1).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+    [calendarMonth],
+  );
+
+  const todayKey = useMemo(() => formatDateKey(today), [today]);
+
+  const goToPrevMonth = () => {
+    setCalendarMonth((prev) =>
+      prev.month === 0
+        ? { year: prev.year - 1, month: 11 }
+        : { year: prev.year, month: prev.month - 1 },
+    );
+  };
+
+  const goToNextMonth = () => {
+    setCalendarMonth((prev) =>
+      prev.month === 11
+        ? { year: prev.year + 1, month: 0 }
+        : { year: prev.year, month: prev.month + 1 },
+    );
+  };
+
+  const selectedDayContributions = selectedDate
+    ? (contributionsByDate.get(selectedDate) ?? []).sort(
+        (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime),
+      )
+    : [];
+
+  // Analytics computations
+  const statusBreakdown = useMemo(() => {
+    const total = contributions.length;
+    return (["completed", "in-progress", "pending"] as ContributionStatus[]).map((status) => {
+      const count = contributions.filter((c) => c.status === status).length;
+      return {
+        status,
+        count,
+        percent: total > 0 ? Math.round((count / total) * 100) : 0,
+      };
+    });
+  }, [contributions]);
+
+  const maxEmployeeMinutes = useMemo(
+    () => Math.max(1, ...stats.employeeSummary.map((s) => s.minutes)),
+    [stats.employeeSummary],
+  );
 
   const openAddModal = () => {
     setError("");
@@ -226,7 +419,10 @@ const ProjectDetail = () => {
       date: contribution.date,
       startTime: contribution.startTime,
       endTime: contribution.endTime,
+      title: getTitle(contribution),
       task: contribution.task,
+      type: getType(contribution),
+      priority: getPriority(contribution),
       status: contribution.status,
     });
     setModalOpen(true);
@@ -236,11 +432,6 @@ const ProjectDetail = () => {
     event.preventDefault();
 
     if (!projectId) return;
-
-    if (toMinutes(form.endTime) <= toMinutes(form.startTime)) {
-      setError("End time must be after start time.");
-      return;
-    }
 
     setError("");
     setSaving(true);
@@ -255,7 +446,7 @@ const ProjectDetail = () => {
         const created = await createContribution({ ...form, projectId });
         setContributions((prev) => [created, ...prev]);
       }
-      
+
       setModalOpen(false);
     } catch (err) {
       setError("Failed to save contribution. Please try again.");
@@ -279,15 +470,16 @@ const ProjectDetail = () => {
   };
 
   const handleExportCSV = () => {
-    const headers = ["Employee", "Date", "Start Time", "End Time", "Duration", "Task"];
+    const headers = ["Employee", "Title", "Type", "Priority", "Due Date", "Status", "Description"];
     const rows = contributions.map(c => {
       const emp = employeeMap.get(c.employeeId);
       return [
         emp?.name || "Unknown",
+        getTitle(c),
+        contributionTypeLabels[getType(c)],
+        contributionPriorityLabels[getPriority(c)],
         c.date,
-        c.startTime,
-        c.endTime,
-        formatDuration(c.startTime, c.endTime),
+        contributionStatusLabels[c.status],
         c.task,
       ];
     });
@@ -306,6 +498,45 @@ const ProjectDetail = () => {
     URL.revokeObjectURL(url);
   };
 
+  const toggleSettingsEmployee = (employeeId: string) => {
+    setSettingsForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            employeeIds: prev.employeeIds.includes(employeeId)
+              ? prev.employeeIds.filter((id) => id !== employeeId)
+              : [...prev.employeeIds, employeeId],
+          }
+        : prev,
+    );
+  };
+
+  const handleSettingsSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!project || !settingsForm) return;
+
+    setSavingSettings(true);
+    setSettingsSaved(false);
+
+    const updated = await updateProject(project.id, settingsForm);
+    setProject(updated);
+    setSavingSettings(false);
+    setSettingsSaved(true);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!project) return;
+
+    const confirmed = window.confirm(
+      `Delete "${project.name}"? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    await deleteProject(project.id);
+    navigate("/admin/projects");
+  };
+
   if (loading) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
@@ -314,7 +545,7 @@ const ProjectDetail = () => {
     );
   }
 
-  if (!project) {
+  if (!project || !settingsForm) {
     return (
       <div className="space-y-4">
         <button
@@ -385,335 +616,729 @@ const ProjectDetail = () => {
         {/* Stats Cards */}
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard
-            icon={<Clock3 size={18} className="text-blue-500" />}
-            label="Total Hours"
-            value={`${stats.totalHours}h`}
+            icon={<ListChecks size={18} className="text-blue-500" />}
+            label="Total Tasks"
+            value={String(stats.totalContributions)}
             bg="bg-blue-50"
           />
           <StatCard
-            icon={<BarChart3 size={18} className="text-violet-500" />}
-            label="Contributions"
-            value={String(stats.totalContributions)}
-            bg="bg-violet-50"
-          />
-          <StatCard
-            icon={<Users size={18} className="text-emerald-500" />}
-            label="Contributors"
-            value={String(stats.uniqueEmployees)}
+            icon={<CheckCircle2 size={18} className="text-emerald-500" />}
+            label="Completed"
+            value={String(stats.completed)}
             bg="bg-emerald-50"
           />
           <StatCard
-            icon={<TrendingUp size={18} className="text-amber-500" />}
-            label="Avg. Hours/Day"
-            value={stats.totalContributions > 0 
-              ? `${Math.round(stats.totalMinutes / stats.totalContributions / 60 * 10) / 10}h` 
-              : "0h"
-            }
+            icon={<Loader2 size={18} className="text-amber-500" />}
+            label="In Progress"
+            value={String(stats.inProgress)}
             bg="bg-amber-50"
           />
+          <StatCard
+            icon={<Users size={18} className="text-violet-500" />}
+            label="Team Members"
+            value={String(assignedEmployees.length)}
+            bg="bg-violet-50"
+          />
+        </div>
+      </div>
+
+      {/* Tabs Card */}
+      <div className="rounded-xl border border-slate-200 bg-white">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-2">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Assigned Employees */}
-        <div className="mt-6 border-t border-slate-100 pt-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Assigned Employees
-            </p>
-            <span className="text-xs text-slate-400">
-              {assignedEmployees.length} members
-            </span>
-          </div>
+        <div className="p-6">
+          {activeTab === "tasks" && (
+            <div>
+              {/* Assigned Employees */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Assigned Employees
+                  </p>
+                  <span className="text-xs text-slate-400">
+                    {assignedEmployees.length} members
+                  </span>
+                </div>
 
-          {assignedEmployees.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-400">No employees assigned yet.</p>
-          ) : (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {assignedEmployees.map((employee) => {
-                const summary = stats.employeeSummary.find(s => s.id === employee.id);
-                return (
-                  <div
-                    key={employee.id}
-                    className="flex items-center gap-2 rounded-full border border-slate-200 py-1 pl-1 pr-3 text-sm text-slate-700"
-                  >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">
-                      {employee.name.charAt(0).toUpperCase()}
-                    </span>
-                    <span>
-                      {employee.name}
-                      <span className="text-xs text-slate-400">
-                        {" "}
-                        · Manager: {employee.managerName ?? "Unassigned"}
-                      </span>
-                    </span>
-                    {summary && (
-                      <span className="text-xs text-slate-400">
-                        ({summary.hours}h)
-                      </span>
-                    )}
+                {assignedEmployees.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-400">No employees assigned yet.</p>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {assignedEmployees.map((employee) => {
+                      const summary = stats.employeeSummary.find(s => s.id === employee.id);
+                      return (
+                        <div
+                          key={employee.id}
+                          className="flex items-center gap-2 rounded-full border border-slate-200 py-1 pl-1 pr-3 text-sm text-slate-700"
+                        >
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">
+                            {employee.name.charAt(0).toUpperCase()}
+                          </span>
+                          <span>
+                            {employee.name}
+                            <span className="text-xs text-slate-400">
+                              {" "}
+                              · Manager: {employee.managerName ?? "Unassigned"}
+                            </span>
+                          </span>
+                          {summary && (
+                            <span className="text-xs text-slate-400">
+                              ({summary.hours}h)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                )}
+              </div>
+
+              {/* Daily Contributions */}
+              <div className="mt-6 border-t border-slate-100 pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-900">
+                      Daily Contributions
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {filteredContributions.length} entries found
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={openAddModal}
+                    disabled={assignedEmployees.length === 0}
+                    className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Plus size={18} />
+                    Add Tasks
+                  </button>
+                </div>
+
+                {/* Filters */}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[150px]">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search employee or task..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <select
+                    value={filterEmployee}
+                    onChange={(e) => setFilterEmployee(e.target.value)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="all">All Employees</option>
+                    {assignedEmployees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+
+                  {(searchTerm || filterEmployee !== "all" || filterDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm("");
+                        setFilterEmployee("all");
+                        setFilterDate("");
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] text-left">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Task
+                          </th>
+                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Assignee
+                          </th>
+                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Type
+                          </th>
+                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Priority
+                          </th>
+                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Due Date
+                          </th>
+                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {filteredContributions.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-14">
+                              <div className="flex flex-col items-center gap-2 text-center">
+                                <Clock3 size={22} className="text-slate-300" />
+                                <p className="text-sm font-medium text-slate-500">
+                                  No contributions logged yet
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {contributions.length > 0 ? "Try adjusting filters" : "Start by adding a contribution"}
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {filteredContributions.map((contribution) => (
+                          <tr
+                            key={contribution.id}
+                            className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors"
+                          >
+                            <td className="max-w-[240px] px-6 py-4">
+                              <p className="truncate text-sm font-medium text-slate-800">
+                                {getTitle(contribution)}
+                              </p>
+                              {contribution.title && contribution.task && (
+                                <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+                                  {contribution.task}
+                                </p>
+                              )}
+                            </td>
+
+                            <td className="px-6 py-4 text-sm text-slate-600">
+                              {employeeMap.get(contribution.employeeId)?.name ??
+                                "Unknown"}
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${contributionTypeStyles[getType(contribution)]}`}
+                              >
+                                {contributionTypeLabels[getType(contribution)]}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${contributionPriorityStyles[getPriority(contribution)]}`}
+                              >
+                                {contributionPriorityLabels[getPriority(contribution)]}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-4 text-sm text-slate-600">
+                              {contribution.date}
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${contributionStatusStyles[contribution.status]}`}
+                              >
+                                {contributionStatusLabels[contribution.status]}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(contribution)}
+                                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
+                                  aria-label="Edit contribution"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(contribution)}
+                                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-600"
+                                  aria-label="Delete contribution"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "calendar" && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="mx-auto w-full max-w-md">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-slate-900">{monthLabel}</h2>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={goToPrevMonth}
+                      className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={goToNextMonth}
+                      className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                      aria-label="Next month"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-7 gap-1">
+                  {WEEKDAYS.map((day) => (
+                    <div
+                      key={day}
+                      className="py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-400"
+                    >
+                      {day}
+                    </div>
+                  ))}
+
+                  {calendarWeeks.flatMap((week, weekIndex) =>
+                    week.map((dateKey, dayIndex) => {
+                      if (!dateKey) {
+                        return (
+                          <div key={`${weekIndex}-${dayIndex}`} className="aspect-square" />
+                        );
+                      }
+
+                      const dayContributions = contributionsByDate.get(dateKey) ?? [];
+                      const isToday = dateKey === todayKey;
+                      const isSelected = dateKey === selectedDate;
+
+                      return (
+                        <button
+                          key={dateKey}
+                          type="button"
+                          onClick={() =>
+                            setSelectedDate((prev) => (prev === dateKey ? null : dateKey))
+                          }
+                          className={`flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-colors ${
+                            isSelected
+                              ? "border-blue-600 bg-blue-50 text-blue-700"
+                              : isToday
+                                ? "border-blue-200 bg-blue-50/50 text-slate-700"
+                                : "border-slate-100 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className={isToday ? "font-semibold" : undefined}>
+                            {Number(dateKey.slice(-2))}
+                          </span>
+                          {dayContributions.length > 0 && (
+                            <span className="rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">
+                              {dayContributions.length}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    }),
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {selectedDate ? `Tasks on ${selectedDate}` : "Select a date to view tasks"}
+                </h3>
+
+                {selectedDate && selectedDayContributions.length === 0 && (
+                  <p className="mt-2 text-sm text-slate-400">No tasks logged on this date.</p>
+                )}
+
+                {!selectedDate && (
+                  <p className="mt-2 text-sm text-slate-400">
+                    Click a date on the calendar to see its tasks here.
+                  </p>
+                )}
+
+                {selectedDayContributions.length > 0 && (
+                  <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                    {selectedDayContributions.map((contribution) => (
+                      <div
+                        key={contribution.id}
+                        className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">
+                            {getTitle(contribution)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {employeeMap.get(contribution.employeeId)?.name ?? "Unknown"} ·{" "}
+                            {contributionTypeLabels[getType(contribution)]} ·{" "}
+                            {contributionPriorityLabels[getPriority(contribution)]} priority
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${contributionStatusStyles[contribution.status]}`}
+                        >
+                          {contributionStatusLabels[contribution.status]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "analytics" && (
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Task Status Breakdown</h2>
+                <div className="mt-4 space-y-4">
+                  {statusBreakdown.map(({ status, count, percent }) => (
+                    <div key={status}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700">
+                          {contributionStatusLabels[status]}
+                        </span>
+                        <span className="text-slate-500">
+                          {count} · {percent}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${contributionBarColors[status]}`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                <h2 className="text-base font-semibold text-slate-900">Contributor Breakdown</h2>
+                {stats.employeeSummary.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-400">No contributions logged yet.</p>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    {stats.employeeSummary.map((summary) => (
+                      <div key={summary.id}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-slate-700">{summary.name}</span>
+                          <span className="text-slate-500">
+                            {summary.count} entries · {summary.hours}h
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-violet-500"
+                            style={{
+                              width: `${Math.round((summary.minutes / maxEmployeeMinutes) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "settings" && (
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              <form className="space-y-4" onSubmit={handleSettingsSubmit}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Project Name
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={settingsForm.name}
+                      onChange={(event) =>
+                        setSettingsForm((prev) =>
+                          prev ? { ...prev, name: event.target.value } : prev,
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Client
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={settingsForm.client}
+                      onChange={(event) =>
+                        setSettingsForm((prev) =>
+                          prev ? { ...prev, client: event.target.value } : prev,
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={settingsForm.description}
+                    onChange={(event) =>
+                      setSettingsForm((prev) =>
+                        prev ? { ...prev, description: event.target.value } : prev,
+                      )
+                    }
+                    className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Start Date
+                    </label>
+                    <input
+                      required
+                      type="date"
+                      value={settingsForm.startDate}
+                      onChange={(event) =>
+                        setSettingsForm((prev) =>
+                          prev ? { ...prev, startDate: event.target.value } : prev,
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={settingsForm.endDate}
+                      min={settingsForm.startDate || undefined}
+                      onChange={(event) =>
+                        setSettingsForm((prev) =>
+                          prev ? { ...prev, endDate: event.target.value } : prev,
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Progress ({settingsForm.progress}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={settingsForm.progress}
+                      onChange={(event) =>
+                        setSettingsForm((prev) =>
+                          prev ? { ...prev, progress: Number(event.target.value) } : prev,
+                        )
+                      }
+                      className="w-full accent-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Status
+                    </label>
+                    <select
+                      value={settingsForm.status}
+                      onChange={(event) =>
+                        setSettingsForm((prev) =>
+                          prev
+                            ? { ...prev, status: event.target.value as ProjectStatus }
+                            : prev,
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    >
+                      <option value="active">Active</option>
+                      <option value="on-hold">On Hold</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="relative" ref={employeeMenuRef}>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Assign Employees
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeMenuOpen((prev) => !prev)}
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-left text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <span
+                      className={
+                        settingsForm.employeeIds.length === 0 ? "text-slate-400" : undefined
+                      }
+                    >
+                      {settingsForm.employeeIds.length === 0
+                        ? "Select employees"
+                        : settingsForm.employeeIds
+                            .map((id) => employeeMap.get(id)?.name)
+                            .filter(Boolean)
+                            .join(", ")}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`shrink-0 text-slate-400 transition-transform ${employeeMenuOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {employeeMenuOpen && (
+                    <div className="absolute z-10 mt-1.5 max-h-48 w-full space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                      {employees.length === 0 && (
+                        <p className="px-2 py-1.5 text-sm text-slate-400">
+                          No employees available
+                        </p>
+                      )}
+
+                      {employees.map((employee) => (
+                        <label
+                          key={employee.id}
+                          className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={settingsForm.employeeIds.includes(employee.id)}
+                            onChange={() => toggleSettingsEmployee(employee.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          {employee.name}
+                          <span className="text-xs text-slate-400">
+                            {employee.department}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={savingSettings}
+                    className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {savingSettings ? "Saving..." : "Save Changes"}
+                  </button>
+                  {settingsSaved && !savingSettings && (
+                    <span className="text-sm text-emerald-600">Saved.</span>
+                  )}
+                </div>
+              </form>
+
+              <div className="border-t border-slate-100 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                <h2 className="text-base font-semibold text-slate-900">Danger Zone</h2>
+                <div className="mt-4 rounded-lg border border-red-100 bg-red-50/50 p-4">
+                  <h3 className="text-sm font-semibold text-red-700">Delete this project</h3>
+                  <p className="mt-1 text-sm text-red-600/80">
+                    Deleting a project also removes it from the projects list. This cannot be
+                    undone.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleDeleteProject}
+                    disabled={deleting}
+                    className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                  >
+                    <Trash2 size={16} />
+                    {deleting ? "Deleting..." : "Delete Project"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Contributions */}
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-6 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">
-                Daily Contributions
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {filteredContributions.length} entries found
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={openAddModal}
-                disabled={assignedEmployees.length === 0}
-                className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-              >
-                <Plus size={18} />
-                Add Tasks
-              </button>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[150px]">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search employee or task..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
-
-            <select
-              value={filterEmployee}
-              onChange={(e) => setFilterEmployee(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="all">All Employees</option>
-              {assignedEmployees.map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.name}</option>
-              ))}
-            </select>
-
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            />
-
-            {(searchTerm || filterEmployee !== "all" || filterDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm("");
-                  setFilterEmployee("all");
-                  setFilterDate("");
-                }}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Employee
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Time
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Task
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredContributions.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-14">
-                    <div className="flex flex-col items-center gap-2 text-center">
-                      <Clock3 size={22} className="text-slate-300" />
-                      <p className="text-sm font-medium text-slate-500">
-                        No contributions logged yet
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {contributions.length > 0 ? "Try adjusting filters" : "Start by adding a contribution"}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-
-              {filteredContributions.map((contribution) => (
-                <tr
-                  key={contribution.id}
-                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm font-medium text-slate-800">
-                    {employeeMap.get(contribution.employeeId)?.name ??
-                      "Unknown"}
-                  </td>
-
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {contribution.date}
-                  </td>
-
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {contribution.startTime} - {contribution.endTime}
-                  </td>
-
-                  <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                    {formatDuration(contribution.startTime, contribution.endTime)}
-                  </td>
-
-                  <td className="max-w-[220px] px-6 py-4 text-sm text-slate-600">
-                    <p className="line-clamp-1">{contribution.task}</p>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${contributionStatusStyles[contribution.status]}`}
-                    >
-                      {contributionStatusLabels[contribution.status]}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(contribution)}
-                        className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
-                        aria-label="Edit contribution"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(contribution)}
-                        className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-600"
-                        aria-label="Delete contribution"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add/Edit Contribution Modal */}
+      {/* Add/Edit Task Modal */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? "Edit Tasks" : "Add Tasks"}
+        title={editingId ? "Edit Task" : "Create New Task"}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Employee
-            </label>
-            <select
-              required
-              value={form.employeeId}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, employeeId: event.target.value }))
-              }
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            >
-              {assignedEmployees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Date
+              Title
             </label>
             <input
               required
-              type="date"
-              value={form.date}
+              type="text"
+              value={form.title}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, date: event.target.value }))
+                setForm((prev) => ({ ...prev, title: event.target.value }))
               }
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              placeholder="e.g. UI / UX Design"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Start Time
-              </label>
-              <input
-                required
-                type="time"
-                value={form.startTime}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, startTime: event.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                End Time
-              </label>
-              <input
-                required
-                type="time"
-                value={form.endTime}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, endTime: event.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Task Details
+              Description
             </label>
             <textarea
               required
@@ -722,29 +1347,118 @@ const ProjectDetail = () => {
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, task: event.target.value }))
               }
-              placeholder="What was worked on?"
+              placeholder="What needs to be done?"
               className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Type
+              </label>
+              <select
+                value={form.type}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    type: event.target.value as ContributionType,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="task">Task</option>
+                <option value="bug">Bug</option>
+                <option value="feature">Feature</option>
+                <option value="improvement">Improvement</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Priority
+              </label>
+              <select
+                value={form.priority}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    priority: event.target.value as ContributionPriority,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Assignee
+              </label>
+              <select
+                required
+                value={form.employeeId}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, employeeId: event.target.value }))
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                {assignedEmployees.length === 0 && (
+                  <option value="">Unassigned</option>
+                )}
+                {assignedEmployees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Status
+              </label>
+              <select
+                value={form.status}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    status: event.target.value as ContributionStatus,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="pending">{contributionStatusLabels.pending}</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Status
+              Due Date
             </label>
-            <select
-              value={form.status}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  status: event.target.value as ContributionStatus,
-                }))
-              }
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="pending">Pending</option>
-              <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
+            <div className="relative">
+              <CalendarDays
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                required
+                type="date"
+                value={form.date}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, date: event.target.value }))
+                }
+                className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -753,7 +1467,7 @@ const ProjectDetail = () => {
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+              className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
             >
               Cancel
             </button>
@@ -763,7 +1477,7 @@ const ProjectDetail = () => {
               disabled={saving}
               className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
             >
-              {saving ? "Saving..." : editingId ? "Update Tasks" : "Add Tasks"}
+              {saving ? "Saving..." : editingId ? "Update Task" : "Create Task"}
             </button>
           </div>
         </form>
@@ -773,15 +1487,15 @@ const ProjectDetail = () => {
 };
 
 // Stat Card Component
-const StatCard = ({ 
-  icon, 
-  label, 
-  value, 
-  bg 
-}: { 
-  icon: React.ReactNode; 
-  label: string; 
-  value: string; 
+const StatCard = ({
+  icon,
+  label,
+  value,
+  bg
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
   bg: string;
 }) => (
   <div className={`rounded-lg ${bg} p-3`}>
