@@ -8,18 +8,23 @@ import {
   updateManager,
 } from "../../services/managerService";
 import { getEmployees } from "../../services/employeeService";
+import { getUserList } from "../../services/userService";
+import { getDepartmentList } from "../../services/departmentService";
 import type { Manager, ManagerFormInput } from "../../types/manager";
+import type { ApiUser } from "../../types/auth";
+import type { Department } from "../../types/department";
 
 const emptyForm: ManagerFormInput = {
-  name: "",
-  email: "",
+  userId: null,
+  departmentId: null,
   phone: "",
-  department: "",
   status: "active",
 };
 
 const Managers = () => {
   const [managers, setManagers] = useState<Manager[]>([]);
+  const [users, setUsers] = useState<ApiUser[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [teamSizes, setTeamSizes] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -28,13 +33,17 @@ const Managers = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ManagerFormInput>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [managerList, employeeList] = await Promise.all([
-        getManagerList(),
-        getEmployees(),
-      ]);
+      const [managerList, employeeList, userList, departmentList] =
+        await Promise.all([
+          getManagerList(),
+          getEmployees(),
+          getUserList(),
+          getDepartmentList(),
+        ]);
 
       const counts: Record<string, number> = {};
       for (const employee of employeeList) {
@@ -43,12 +52,29 @@ const Managers = () => {
       }
 
       setManagers(managerList);
+      setUsers(userList);
+      setDepartments(departmentList);
       setTeamSizes(counts);
       setLoading(false);
     };
 
     load();
   }, []);
+
+  const availableUsers = useMemo(
+    () =>
+      users.filter(
+        (user) =>
+          user.id === form.userId ||
+          !managers.some((manager) => manager.userId === user.id),
+      ),
+    [users, managers, form.userId],
+  );
+
+  const selectedUserEmail = useMemo(
+    () => users.find((user) => user.id === form.userId)?.email ?? "",
+    [users, form.userId],
+  );
 
   const filteredManagers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -66,37 +92,44 @@ const Managers = () => {
   const openCreateModal = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setError(null);
     setModalOpen(true);
   };
 
   const openEditModal = (manager: Manager) => {
     setEditingId(manager.id);
     setForm({
-      name: manager.name,
-      email: manager.email,
+      userId: manager.userId,
+      departmentId: manager.departmentId,
       phone: manager.phone,
-      department: manager.department,
       status: manager.status,
     });
+    setError(null);
     setModalOpen(true);
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
+    setError(null);
 
-    if (editingId) {
-      const updated = await updateManager(editingId, form);
-      setManagers((prev) =>
-        prev.map((manager) => (manager.id === editingId ? updated : manager)),
-      );
-    } else {
-      const created = await createManager(form);
-      setManagers((prev) => [created, ...prev]);
+    try {
+      if (editingId) {
+        const updated = await updateManager(editingId, form);
+        setManagers((prev) =>
+          prev.map((manager) => (manager.id === editingId ? updated : manager)),
+        );
+      } else {
+        const created = await createManager(form);
+        setManagers((prev) => [created, ...prev]);
+      }
+
+      setModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save manager");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    setModalOpen(false);
   };
 
   const handleDelete = async (manager: Manager) => {
@@ -280,15 +313,26 @@ const Managers = () => {
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Full Name
             </label>
-            <input
+            <select
               required
-              type="text"
-              value={form.name}
+              value={form.userId ?? ""}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, name: event.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  userId: event.target.value ? Number(event.target.value) : null,
+                }))
               }
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
+            >
+              <option value="" disabled>
+                Select a user
+              </option>
+              {availableUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -297,13 +341,11 @@ const Managers = () => {
                 Email
               </label>
               <input
-                required
+                disabled
                 type="email"
-                value={form.email}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, email: event.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                value={selectedUserEmail}
+                placeholder="Select a name first"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500 outline-none"
               />
             </div>
 
@@ -327,18 +369,28 @@ const Managers = () => {
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Department
               </label>
-              <input
+              <select
                 required
-                type="text"
-                value={form.department}
+                value={form.departmentId ?? ""}
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    department: event.target.value,
+                    departmentId: event.target.value
+                      ? Number(event.target.value)
+                      : null,
                   }))
                 }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+              >
+                <option value="" disabled>
+                  Select department
+                </option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -360,6 +412,8 @@ const Managers = () => {
               </select>
             </div>
           </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
             <button

@@ -171,10 +171,9 @@ const EmployeeProfile = () => {
       name: personalForm.name,
       email: personalForm.email,
       phone: personalForm.phone,
-      department: employee.department,
-      designation: employee.designation,
+      departmentId: employee.departmentId,
+      designationId: employee.designationId,
       managerId: employee.managerId,
-      managerName: employee.managerName,
       joinDate: employee.joinDate,
       status: employee.status,
     });

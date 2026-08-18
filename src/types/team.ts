@@ -10,6 +10,9 @@ export interface TeamMember {
 export interface Team {
   id: number;
   name: string;
+  description: string | null;
+  managerId: number | null;
+  managerName: string | null;
   member_count: number;
   members: TeamMember[];
   created_at: string;
@@ -23,5 +26,7 @@ export interface TeamMemberInput {
 
 export interface TeamFormInput {
   name: string;
+  description: string;
+  managerId: number | null;
   members: TeamMemberInput[];
 }

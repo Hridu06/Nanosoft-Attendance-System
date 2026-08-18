@@ -8,28 +8,27 @@ import {
   getEmployees,
   updateEmployee,
 } from "../../services/employeeService";
-import { getManagers } from "../../services/managerService";
-import type {
-  Employee,
-  EmployeeFormInput,
-  ManagerOption,
-} from "../../types/employee";
+import { getDepartmentList } from "../../services/departmentService";
+import { getDesignationList } from "../../services/designationService";
+import type { Employee, EmployeeFormInput } from "../../types/employee";
+import type { Department } from "../../types/department";
+import type { Designation } from "../../types/designation";
 
 const emptyForm: EmployeeFormInput = {
   name: "",
   email: "",
   phone: "",
-  department: "",
-  designation: "",
+  departmentId: null,
+  designationId: null,
   managerId: null,
-  managerName: null,
   joinDate: new Date().toISOString().slice(0, 10),
   status: "active",
 };
 
 const Employees = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -37,21 +36,29 @@ const Employees = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EmployeeFormInput>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [employeeList, managerList] = await Promise.all([
+      const [employeeList, departmentList, designationList] = await Promise.all([
         getEmployees(),
-        getManagers(),
+        getDepartmentList(),
+        getDesignationList(),
       ]);
 
       setEmployees(employeeList);
-      setManagers(managerList);
+      setDepartments(departmentList);
+      setDesignations(designationList);
       setLoading(false);
     };
 
     load();
   }, []);
+
+  const managerOptions = useMemo(
+    () => employees.filter((employee) => employee.id !== editingId),
+    [employees, editingId],
+  );
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -69,6 +76,7 @@ const Employees = () => {
   const openCreateModal = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setError(null);
     setModalOpen(true);
   };
 
@@ -78,42 +86,38 @@ const Employees = () => {
       name: employee.name,
       email: employee.email,
       phone: employee.phone,
-      department: employee.department,
-      designation: employee.designation,
+      departmentId: employee.departmentId,
+      designationId: employee.designationId,
       managerId: employee.managerId,
-      managerName: employee.managerName,
       joinDate: employee.joinDate,
       status: employee.status,
     });
+    setError(null);
     setModalOpen(true);
-  };
-
-  const handleManagerChange = (managerId: string) => {
-    const manager = managers.find((item) => item.id === managerId) ?? null;
-
-    setForm((prev) => ({
-      ...prev,
-      managerId: manager?.id ?? null,
-      managerName: manager?.name ?? null,
-    }));
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
+    setError(null);
 
-    if (editingId) {
-      const updated = await updateEmployee(editingId, form);
-      setEmployees((prev) =>
-        prev.map((employee) => (employee.id === editingId ? updated : employee)),
-      );
-    } else {
-      const created = await createEmployee(form);
-      setEmployees((prev) => [created, ...prev]);
+    try {
+      if (editingId) {
+        const updated = await updateEmployee(editingId, form);
+        setEmployees((prev) =>
+          prev.map((employee) => (employee.id === editingId ? updated : employee)),
+        );
+      } else {
+        const created = await createEmployee(form);
+        setEmployees((prev) => [created, ...prev]);
+      }
+
+      setModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save employee");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    setModalOpen(false);
   };
 
   const handleDelete = async (employee: Employee) => {
@@ -351,36 +355,56 @@ const Employees = () => {
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Department
               </label>
-              <input
+              <select
                 required
-                type="text"
-                value={form.department}
+                value={form.departmentId ?? ""}
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    department: event.target.value,
+                    departmentId: event.target.value
+                      ? Number(event.target.value)
+                      : null,
                   }))
                 }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+              >
+                <option value="" disabled>
+                  Select department
+                </option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Designation
               </label>
-              <input
+              <select
                 required
-                type="text"
-                value={form.designation}
+                value={form.designationId ?? ""}
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    designation: event.target.value,
+                    designationId: event.target.value
+                      ? Number(event.target.value)
+                      : null,
                   }))
                 }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+              >
+                <option value="" disabled>
+                  Select designation
+                </option>
+                {designations.map((designation) => (
+                  <option key={designation.id} value={designation.id}>
+                    {designation.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -391,11 +415,16 @@ const Employees = () => {
               </label>
               <select
                 value={form.managerId ?? ""}
-                onChange={(event) => handleManagerChange(event.target.value)}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    managerId: event.target.value || null,
+                  }))
+                }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               >
                 <option value="">Unassigned</option>
-                {managers.map((manager) => (
+                {managerOptions.map((manager) => (
                   <option key={manager.id} value={manager.id}>
                     {manager.name}
                   </option>
@@ -422,6 +451,23 @@ const Employees = () => {
               </select>
             </div>
           </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Join Date
+            </label>
+            <input
+              required
+              type="date"
+              value={form.joinDate}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, joinDate: event.target.value }))
+              }
+              className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
             <button

@@ -1,61 +1,70 @@
-import type { Manager, ManagerFormInput, ManagerOption } from "../types/manager";
+import { apiRequest } from "./api";
+import type { Manager, ManagerFormInput } from "../types/manager";
 
-let managers: Manager[] = [
-  {
-    id: "m1",
-    name: "Kamrul Islam",
-    email: "kamrul.islam@nanosoft.com",
-    phone: "01711-100001",
-    department: "Software",
-    status: "active",
-  },
-  {
-    id: "m2",
-    name: "Nasrin Akter",
-    email: "nasrin.akter@nanosoft.com",
-    phone: "01711-100002",
-    department: "Design",
-    status: "active",
-  },
-  {
-    id: "m3",
-    name: "Shahriar Kabir",
-    email: "shahriar.kabir@nanosoft.com",
-    phone: "01711-100003",
-    department: "QA",
-    status: "active",
-  },
-];
+interface ApiManager {
+  id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  department: { id: number; name: string } | null;
+  status: Manager["status"];
+}
 
-const delay = <T,>(data: T): Promise<T> =>
-  new Promise((resolve) => setTimeout(() => resolve(data), 250));
+interface ManagerListResponse {
+  managers: ApiManager[];
+}
 
-export const getManagerList = (): Promise<Manager[]> => {
-  return delay([...managers]);
+interface ManagerResponse {
+  message: string;
+  manager: ApiManager;
+}
+
+const toManager = (data: ApiManager): Manager => ({
+  id: String(data.id),
+  userId: data.user_id,
+  name: data.name,
+  email: data.email,
+  phone: data.phone ?? "",
+  department: data.department?.name ?? "",
+  departmentId: data.department?.id ?? null,
+  status: data.status,
+});
+
+const toRequestBody = (input: ManagerFormInput) => ({
+  user_id: input.userId,
+  department_id: input.departmentId,
+  phone: input.phone || null,
+  status: input.status,
+});
+
+export const getManagerList = async (): Promise<Manager[]> => {
+  const data = await apiRequest<ManagerListResponse>("/managers");
+  return data.managers.map(toManager);
 };
 
-export const getManagers = (): Promise<ManagerOption[]> => {
-  return delay(managers.map(({ id, name }) => ({ id, name })));
+export const createManager = async (
+  input: ManagerFormInput,
+): Promise<Manager> => {
+  const data = await apiRequest<ManagerResponse>("/managers", {
+    method: "POST",
+    body: toRequestBody(input),
+  });
+
+  return toManager(data.manager);
 };
 
-export const createManager = (input: ManagerFormInput): Promise<Manager> => {
-  const manager: Manager = { id: crypto.randomUUID(), ...input };
-  managers = [manager, ...managers];
-  return delay(manager);
-};
-
-export const updateManager = (
+export const updateManager = async (
   id: string,
   input: ManagerFormInput,
 ): Promise<Manager> => {
-  managers = managers.map((manager) =>
-    manager.id === id ? { id, ...input } : manager,
-  );
+  const data = await apiRequest<ManagerResponse>(`/managers/${id}`, {
+    method: "PUT",
+    body: toRequestBody(input),
+  });
 
-  return delay({ id, ...input });
+  return toManager(data.manager);
 };
 
-export const deleteManager = (id: string): Promise<void> => {
-  managers = managers.filter((manager) => manager.id !== id);
-  return delay(undefined);
-};
+export const deleteManager = (id: string): Promise<void> =>
+  apiRequest(`/managers/${id}`, { method: "DELETE" });

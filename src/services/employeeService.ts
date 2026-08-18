@@ -1,81 +1,80 @@
+import { apiRequest } from "./api";
 import type { Employee, EmployeeFormInput } from "../types/employee";
 
-let employees: Employee[] = [
-  {
-    id: "e1",
-    name: "Sabbir Hossain",
-    email: "sabbir.hossain@nanosoft.com",
-    phone: "01711-000001",
-    department: "Software",
-    designation: "Backend Developer",
-    managerId: "m1",
-    managerName: "Kamrul Islam",
-    joinDate: "2023-02-14",
-    status: "active",
-  },
-  {
-    id: "e2",
-    name: "Rahim Ahmed",
-    email: "rahim.ahmed@nanosoft.com",
-    phone: "01711-000002",
-    department: "Software",
-    designation: "Frontend Developer",
-    managerId: "m1",
-    managerName: "Kamrul Islam",
-    joinDate: "2023-05-02",
-    status: "active",
-  },
-  {
-    id: "e3",
-    name: "Hasan Mahmud",
-    email: "hasan.mahmud@nanosoft.com",
-    phone: "01711-000003",
-    department: "Design",
-    designation: "UI/UX Designer",
-    managerId: "m2",
-    managerName: "Nasrin Akter",
-    joinDate: "2022-11-20",
-    status: "active",
-  },
-  {
-    id: "e4",
-    name: "Farhana Islam",
-    email: "farhana.islam@nanosoft.com",
-    phone: "01711-000004",
-    department: "QA",
-    designation: "QA Engineer",
-    managerId: "m3",
-    managerName: "Shahriar Kabir",
-    joinDate: "2024-01-08",
-    status: "inactive",
-  },
-];
+interface ApiEmployee {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  department: { id: number; name: string } | null;
+  designation: { id: number; name: string } | null;
+  manager: { id: number; full_name: string } | null;
+  joining_date: string | null;
+  status: Employee["status"];
+}
 
-const delay = <T,>(data: T): Promise<T> =>
-  new Promise((resolve) => setTimeout(() => resolve(data), 250));
+interface EmployeeListResponse {
+  employees: ApiEmployee[];
+}
 
-export const getEmployees = (): Promise<Employee[]> => {
-  return delay([...employees]);
+interface EmployeeResponse {
+  message: string;
+  employee: ApiEmployee;
+}
+
+const toEmployee = (data: ApiEmployee): Employee => ({
+  id: String(data.id),
+  name: data.full_name,
+  email: data.email,
+  phone: data.phone ?? "",
+  department: data.department?.name ?? "",
+  departmentId: data.department?.id ?? null,
+  designation: data.designation?.name ?? "",
+  designationId: data.designation?.id ?? null,
+  managerId: data.manager ? String(data.manager.id) : null,
+  managerName: data.manager?.full_name ?? null,
+  joinDate: data.joining_date ?? "",
+  status: data.status,
+});
+
+const toRequestBody = (input: EmployeeFormInput) => ({
+  full_name: input.name,
+  email: input.email,
+  phone: input.phone || null,
+  department_id: input.departmentId,
+  designation_id: input.designationId,
+  manager_id: input.managerId ? Number(input.managerId) : null,
+  joining_date: input.joinDate,
+  status: input.status,
+});
+
+export const getEmployees = async (): Promise<Employee[]> => {
+  const data = await apiRequest<EmployeeListResponse>("/employees");
+  return data.employees.map(toEmployee);
 };
 
-export const createEmployee = (input: EmployeeFormInput): Promise<Employee> => {
-  const employee: Employee = { id: crypto.randomUUID(), ...input };
-  employees = [employee, ...employees];
-  return delay(employee);
+export const createEmployee = async (
+  input: EmployeeFormInput,
+): Promise<Employee> => {
+  const data = await apiRequest<EmployeeResponse>("/employees", {
+    method: "POST",
+    body: toRequestBody(input),
+  });
+
+  return toEmployee(data.employee);
 };
 
-export const updateEmployee = (
+export const updateEmployee = async (
   id: string,
   input: EmployeeFormInput,
 ): Promise<Employee> => {
-  employees = employees.map((employee) =>
-    employee.id === id ? { id, ...input } : employee,
-  );
+  const data = await apiRequest<EmployeeResponse>(`/employees/${id}`, {
+    method: "PUT",
+    body: toRequestBody(input),
+  });
 
-  return delay({ id, ...input });
+  return toEmployee(data.employee);
 };
 
-export const deleteEmployee = (id: string): Promise<void> => {
-  employees = employees.filter((employee) => employee.id !== id);
-  return delay(undefined);
-};
+export const deleteEmployee = (id: string): Promise<void> =>
+  apiRequest(`/employees/${id}`, { method: "DELETE" });

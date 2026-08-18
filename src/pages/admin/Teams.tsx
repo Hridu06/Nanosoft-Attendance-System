@@ -8,11 +8,15 @@ import {
   updateTeam,
 } from "../../services/teamService";
 import { getUserList } from "../../services/userService";
+import { getManagerList } from "../../services/managerService";
 import type { ApiUser } from "../../types/auth";
 import type { Team, TeamFormInput, TeamMemberRole } from "../../types/team";
+import type { Manager } from "../../types/manager";
 
 const emptyForm: TeamFormInput = {
   name: "",
+  description: "",
+  managerId: null,
   members: [],
 };
 
@@ -25,6 +29,7 @@ const roleLabels: Record<TeamMemberRole, string> = {
 const Teams = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
+  const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -36,13 +41,15 @@ const Teams = () => {
 
   useEffect(() => {
     const load = async () => {
-      const [teamList, userList] = await Promise.all([
+      const [teamList, userList, managerList] = await Promise.all([
         getTeamList(),
         getUserList(),
+        getManagerList(),
       ]);
 
       setTeams(teamList);
       setUsers(userList);
+      setManagers(managerList);
       setLoading(false);
     };
 
@@ -68,6 +75,8 @@ const Teams = () => {
     setEditingId(team.id);
     setForm({
       name: team.name,
+      description: team.description ?? "",
+      managerId: team.managerId,
       members: team.members.map(({ id, role }) => ({ user_id: id, role })),
     });
     setError(null);
@@ -176,6 +185,9 @@ const Teams = () => {
                   Team
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Manager
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Members
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -190,7 +202,7 @@ const Teams = () => {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
                     Loading teams...
                   </td>
                 </tr>
@@ -198,7 +210,7 @@ const Teams = () => {
 
               {!loading && filteredTeams.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-14">
+                  <td colSpan={5} className="px-6 py-14">
                     <div className="flex flex-col items-center gap-2 text-center">
                       <Users2 size={22} className="text-slate-300" />
                       <p className="text-sm font-medium text-slate-500">
@@ -221,10 +233,23 @@ const Teams = () => {
                           {team.name.charAt(0).toUpperCase()}
                         </div>
 
-                        <p className="text-sm font-medium text-slate-800">
-                          {team.name}
-                        </p>
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">
+                            {team.name}
+                          </p>
+                          {team.description && (
+                            <p className="max-w-xs truncate text-xs text-slate-500">
+                              {team.description}
+                            </p>
+                          )}
+                        </div>
                       </div>
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {team.managerName ?? (
+                        <span className="text-slate-400">Unassigned</span>
+                      )}
                     </td>
 
                     <td className="px-6 py-4 text-sm text-slate-600">
@@ -286,6 +311,49 @@ const Teams = () => {
               }
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Description
+            </label>
+            <textarea
+              rows={3}
+              value={form.description}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="What does this team work on?"
+              className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Manager
+            </label>
+            <select
+              value={form.managerId ?? ""}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  managerId: event.target.value
+                    ? Number(event.target.value)
+                    : null,
+                }))
+              }
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">Unassigned</option>
+              {managers.map((manager) => (
+                <option key={manager.id} value={manager.id}>
+                  {manager.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

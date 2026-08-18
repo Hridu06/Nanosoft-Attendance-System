@@ -1,5 +1,3 @@
-export type { ManagerOption } from "./manager";
-
 export type EmployeeStatus = "active" | "inactive";
 
 export interface Employee {
@@ -8,11 +6,22 @@ export interface Employee {
   email: string;
   phone: string;
   department: string;
+  departmentId: number | null;
   designation: string;
+  designationId: number | null;
   managerId: string | null;
   managerName: string | null;
   joinDate: string;
   status: EmployeeStatus;
 }
 
-export type EmployeeFormInput = Omit<Employee, "id">;
+export interface EmployeeFormInput {
+  name: string;
+  email: string;
+  phone: string;
+  departmentId: number | null;
+  designationId: number | null;
+  managerId: string | null;
+  joinDate: string;
+  status: EmployeeStatus;
+}
