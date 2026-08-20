@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
+  UserCheck,
   Users2,
   FolderKanban,
   Clock3,
@@ -13,7 +14,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth, type Role } from "../../context/AuthContext";
 import logo from "../../assets/Nanosoft.png";
 
 interface NavItem {
@@ -21,6 +22,8 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   sub?: NavItem[];
+  // Omit to show to every signed-in role; otherwise restrict to these.
+  roles?: Role[];
 }
 
 interface NavGroup {
@@ -32,19 +35,26 @@ const navGroups: NavGroup[] = [
   {
     label: "Overview",
     items: [
-      { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      {
+        to: "/admin/dashboard",
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        roles: ["admin"],
+      },
     ],
   },
   {
     label: "Management",
     items: [
-      { to: "/admin/employees", label: "Employees", icon: Users },
-      { to: "/admin/managers", label: "Managers", icon: UserCog },
+      { to: "/admin/employees", label: "Employees", icon: Users, roles: ["admin"] },
+      { to: "/admin/managers", label: "Manager", icon: UserCheck, roles: ["admin"] },
+      { to: "/admin/users", label: "Users", icon: UserCog, roles: ["admin"] },
       { to: "/admin/teams", label: "Teams", icon: Users2 },
       {
         to: "/admin/projects",
         label: "Projects",
         icon: FolderKanban,
+        roles: ["admin"],
         sub: [
           {
             to: "/admin/projects/contributions",
@@ -58,14 +68,16 @@ const navGroups: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { to: "/admin/attendance", label: "Attendance", icon: Clock3 },
-      { to: "/admin/leave", label: "Leave", icon: CalendarDays },
-      { to: "/admin/reports", label: "Reports", icon: BarChart3 },
+      { to: "/admin/attendance", label: "Attendance", icon: Clock3, roles: ["admin"] },
+      { to: "/admin/leave", label: "Leave", icon: CalendarDays, roles: ["admin"] },
+      { to: "/admin/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
     ],
   },
   {
     label: "System",
-    items: [{ to: "/admin/settings", label: "Settings", icon: Settings }],
+    items: [
+      { to: "/admin/settings", label: "Settings", icon: Settings, roles: ["admin"] },
+    ],
   },
 ];
 
@@ -76,6 +88,15 @@ interface AdminSidebarProps {
 
 const AdminSidebar = ({ open, onClose }: AdminSidebarProps) => {
   const { user } = useAuth();
+
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.roles || (user && item.roles.includes(user.role)),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <>
@@ -95,11 +116,17 @@ const AdminSidebar = ({ open, onClose }: AdminSidebarProps) => {
       >
         {/* Logo */}
         <div className="flex h-20 shrink-0 items-center justify-between border-b border-slate-100 px-5">
-          <img
-            src={logo}
-            alt="Nanosoft"
-            className="h-16 w-auto object-contain"
-          />
+          <a
+            href="https://www.nanoit.biz/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <img
+              src={logo}
+              alt="Nanosoft"
+              className="h-16 w-auto object-contain"
+            />
+          </a>
 
           <button
             type="button"
@@ -113,7 +140,7 @@ const AdminSidebar = ({ open, onClose }: AdminSidebarProps) => {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label}>
               <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 {group.label}

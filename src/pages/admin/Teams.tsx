@@ -7,11 +7,10 @@ import {
   getTeamList,
   updateTeam,
 } from "../../services/teamService";
-import { getUserList } from "../../services/userService";
-import { getManagerList } from "../../services/managerService";
-import type { ApiUser } from "../../types/auth";
+import { getUsers } from "../../services/userService";
+import { useAuth } from "../../context/AuthContext";
 import type { Team, TeamFormInput, TeamMemberRole } from "../../types/team";
-import type { Manager } from "../../types/manager";
+import type { User } from "../../types/user";
 
 const emptyForm: TeamFormInput = {
   name: "",
@@ -26,10 +25,17 @@ const roleLabels: Record<TeamMemberRole, string> = {
   employee: "Employee",
 };
 
+// The team's manager is set via the dedicated Manager field above — members
+// are only ever Team Leads or Employees.
+const memberRoleOptions: TeamMemberRole[] = ["team_leader", "employee"];
+
 const Teams = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [teams, setTeams] = useState<Team[]>([]);
-  const [users, setUsers] = useState<ApiUser[]>([]);
-  const [managers, setManagers] = useState<Manager[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [managers, setManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -41,10 +47,18 @@ const Teams = () => {
 
   useEffect(() => {
     const load = async () => {
+      // Non-admins only get the read-only team list — /users is admin-only,
+      // so skip it entirely rather than eating an avoidable 403.
+      if (!isAdmin) {
+        setTeams(await getTeamList());
+        setLoading(false);
+        return;
+      }
+
       const [teamList, userList, managerList] = await Promise.all([
         getTeamList(),
-        getUserList(),
-        getManagerList(),
+        getUsers(),
+        getUsers({ role: "manager" }),
       ]);
 
       setTeams(teamList);
@@ -54,7 +68,7 @@ const Teams = () => {
     };
 
     load();
-  }, []);
+  }, [isAdmin]);
 
   const filteredTeams = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -145,18 +159,22 @@ const Teams = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Teams</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Create teams and assign managers and members.
+            {isAdmin
+              ? "Create teams and assign managers and members."
+              : "Teams you're part of and their members."}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-        >
-          <Plus size={18} />
-          Add Team
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            <Plus size={18} />
+            Add Team
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -193,16 +211,18 @@ const Teams = () => {
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Team Size
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Actions
-                </th>
+                {isAdmin && (
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
 
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={isAdmin ? 5 : 4} className="px-6 py-10 text-center text-sm text-slate-400">
                     Loading teams...
                   </td>
                 </tr>
@@ -210,7 +230,7 @@ const Teams = () => {
 
               {!loading && filteredTeams.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-14">
+                  <td colSpan={isAdmin ? 5 : 4} className="px-6 py-14">
                     <div className="flex flex-col items-center gap-2 text-center">
                       <Users2 size={22} className="text-slate-300" />
                       <p className="text-sm font-medium text-slate-500">
@@ -263,27 +283,29 @@ const Teams = () => {
                       {team.member_count === 1 ? "" : "s"}
                     </td>
 
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(team)}
-                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
-                          aria-label={`Edit ${team.name}`}
-                        >
-                          <Pencil size={16} />
-                        </button>
+                    {isAdmin && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(team)}
+                            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
+                            aria-label={`Edit ${team.name}`}
+                          >
+                            <Pencil size={16} />
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(team)}
-                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-600"
-                          aria-label={`Delete ${team.name}`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(team)}
+                            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-600"
+                            aria-label={`Delete ${team.name}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
             </tbody>
@@ -403,9 +425,9 @@ const Teams = () => {
                         }
                         className="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       >
-                        {Object.entries(roleLabels).map(([value, label]) => (
+                        {memberRoleOptions.map((value) => (
                           <option key={value} value={value}>
-                            {label}
+                            {roleLabels[value]}
                           </option>
                         ))}
                       </select>

@@ -21,12 +21,9 @@ const Login = () => {
     try {
       const user = await login(identifier.trim(), password);
 
-      if (user.role !== "admin") {
-        setError("This account does not have access to the admin dashboard.");
-        return;
-      }
-
-      navigate("/admin/dashboard", { replace: true });
+      navigate(user.role === "admin" ? "/admin/dashboard" : "/admin/teams", {
+        replace: true,
+      });
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Unable to sign in. Please try again.";

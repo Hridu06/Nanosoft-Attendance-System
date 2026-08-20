@@ -6,11 +6,14 @@ interface ApiEmployee {
   full_name: string;
   email: string;
   phone: string | null;
+  avatar: string | null;
   department: { id: number; name: string } | null;
   designation: { id: number; name: string } | null;
-  manager: { id: number; full_name: string } | null;
+  manager: { id: number; name: string } | null;
+  has_user_account: boolean;
   joining_date: string | null;
   status: Employee["status"];
+  is_manager: boolean;
 }
 
 interface EmployeeListResponse {
@@ -27,29 +30,48 @@ const toEmployee = (data: ApiEmployee): Employee => ({
   name: data.full_name,
   email: data.email,
   phone: data.phone ?? "",
+  avatar: data.avatar,
   department: data.department?.name ?? "",
   departmentId: data.department?.id ?? null,
   designation: data.designation?.name ?? "",
   designationId: data.designation?.id ?? null,
   managerId: data.manager ? String(data.manager.id) : null,
-  managerName: data.manager?.full_name ?? null,
+  managerName: data.manager?.name ?? null,
   joinDate: data.joining_date ?? "",
   status: data.status,
+  isManager: data.is_manager,
+  hasUserAccount: data.has_user_account,
 });
 
-const toRequestBody = (input: EmployeeFormInput) => ({
-  full_name: input.name,
-  email: input.email,
-  phone: input.phone || null,
-  department_id: input.departmentId,
-  designation_id: input.designationId,
-  manager_id: input.managerId ? Number(input.managerId) : null,
-  joining_date: input.joinDate,
-  status: input.status,
-});
+const toFormData = (input: EmployeeFormInput): FormData => {
+  const formData = new FormData();
+  formData.append("full_name", input.name);
+  formData.append("email", input.email);
+  if (input.phone) formData.append("phone", input.phone);
+  if (input.departmentId !== null)
+    formData.append("department_id", String(input.departmentId));
+  if (input.designationId !== null)
+    formData.append("designation_id", String(input.designationId));
+  if (input.managerId !== null) formData.append("manager_id", input.managerId);
+  if (input.joinDate) formData.append("joining_date", input.joinDate);
+  formData.append("status", input.status);
+  if (input.avatarFile) formData.append("avatar", input.avatarFile);
+  if (input.isManager !== undefined)
+    formData.append("is_manager", input.isManager ? "1" : "0");
+  return formData;
+};
 
-export const getEmployees = async (): Promise<Employee[]> => {
-  const data = await apiRequest<EmployeeListResponse>("/employees");
+export const getEmployees = async (filters?: {
+  unlinked?: boolean;
+  isManager?: boolean;
+}): Promise<Employee[]> => {
+  const params = new URLSearchParams();
+  if (filters?.unlinked) params.set("unlinked", "1");
+  if (filters?.isManager !== undefined)
+    params.set("is_manager", filters.isManager ? "1" : "0");
+
+  const query = params.toString() ? `?${params.toString()}` : "";
+  const data = await apiRequest<EmployeeListResponse>(`/employees${query}`);
   return data.employees.map(toEmployee);
 };
 
@@ -58,7 +80,7 @@ export const createEmployee = async (
 ): Promise<Employee> => {
   const data = await apiRequest<EmployeeResponse>("/employees", {
     method: "POST",
-    body: toRequestBody(input),
+    body: toFormData(input),
   });
 
   return toEmployee(data.employee);
@@ -68,9 +90,14 @@ export const updateEmployee = async (
   id: string,
   input: EmployeeFormInput,
 ): Promise<Employee> => {
+  const formData = toFormData(input);
+  // Laravel doesn't parse multipart bodies on real PUT requests, so spoof
+  // the method via POST + `_method` (browsers can't send PUT+multipart).
+  formData.append("_method", "PUT");
+
   const data = await apiRequest<EmployeeResponse>(`/employees/${id}`, {
-    method: "PUT",
-    body: toRequestBody(input),
+    method: "POST",
+    body: formData,
   });
 
   return toEmployee(data.employee);

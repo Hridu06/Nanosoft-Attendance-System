@@ -47,6 +47,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .finally(() => setIsLoading(false));
   }, []);
 
+  useEffect(() => {
+    // Fired by apiRequest() whenever any authenticated call comes back 401
+    // (expired/invalid token), so a stale session gets kicked back to /login
+    // instead of surfacing a raw "Unauthenticated." error mid-session.
+    const handleUnauthorized = () => setUser(null);
+
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
+
   const login = async (email: string, password: string) => {
     const apiUser = await authService.login(email, password);
     const authUser = toAuthUser(apiUser);

@@ -35,9 +35,13 @@ export const apiRequest = async <T>(
   path: string,
   { auth = true, headers, body, ...rest }: RequestOptions = {},
 ): Promise<T> => {
+  const isFormData = body instanceof FormData;
+
   const finalHeaders: Record<string, string> = {
     Accept: "application/json",
-    ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    ...(body !== undefined && !isFormData
+      ? { "Content-Type": "application/json" }
+      : {}),
     ...(headers as Record<string, string> | undefined),
   };
 
@@ -53,7 +57,7 @@ export const apiRequest = async <T>(
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       headers: finalHeaders,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new ApiError("Unable to reach the server. Please check your connection.", 0);
@@ -63,6 +67,11 @@ export const apiRequest = async <T>(
   const payload = isJson ? await response.json() : null;
 
   if (!response.ok) {
+    if (auth && response.status === 401) {
+      clearToken();
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
+
     throw new ApiError(
       payload?.message ?? "Something went wrong. Please try again.",
       response.status,

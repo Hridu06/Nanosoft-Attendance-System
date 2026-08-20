@@ -176,6 +176,7 @@ const EmployeeProfile = () => {
       managerId: employee.managerId,
       joinDate: employee.joinDate,
       status: employee.status,
+      avatarFile: null,
     });
 
     setEmployee(updated);
@@ -225,9 +226,17 @@ const EmployeeProfile = () => {
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-semibold text-blue-600">
-              {employee.name.charAt(0).toUpperCase()}
-            </div>
+            {employee.avatar ? (
+              <img
+                src={employee.avatar}
+                alt={employee.name}
+                className="h-14 w-14 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-semibold text-blue-600">
+                {employee.name.charAt(0).toUpperCase()}
+              </div>
+            )}
 
             <div>
               <h1 className="text-xl font-bold text-slate-900">{employee.name}</h1>

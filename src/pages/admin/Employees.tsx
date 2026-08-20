@@ -8,9 +8,11 @@ import {
   getEmployees,
   updateEmployee,
 } from "../../services/employeeService";
+import { getUsers } from "../../services/userService";
 import { getDepartmentList } from "../../services/departmentService";
 import { getDesignationList } from "../../services/designationService";
 import type { Employee, EmployeeFormInput } from "../../types/employee";
+import type { User } from "../../types/user";
 import type { Department } from "../../types/department";
 import type { Designation } from "../../types/designation";
 
@@ -23,10 +25,12 @@ const emptyForm: EmployeeFormInput = {
   managerId: null,
   joinDate: new Date().toISOString().slice(0, 10),
   status: "active",
+  avatarFile: null,
 };
 
 const Employees = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [managerOptions, setManagerOptions] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,13 +44,16 @@ const Employees = () => {
 
   useEffect(() => {
     const load = async () => {
-      const [employeeList, departmentList, designationList] = await Promise.all([
-        getEmployees(),
-        getDepartmentList(),
-        getDesignationList(),
-      ]);
+      const [employeeList, managerList, departmentList, designationList] =
+        await Promise.all([
+          getEmployees(),
+          getUsers({ role: "manager" }),
+          getDepartmentList(),
+          getDesignationList(),
+        ]);
 
       setEmployees(employeeList);
+      setManagerOptions(managerList);
       setDepartments(departmentList);
       setDesignations(designationList);
       setLoading(false);
@@ -54,11 +61,6 @@ const Employees = () => {
 
     load();
   }, []);
-
-  const managerOptions = useMemo(
-    () => employees.filter((employee) => employee.id !== editingId),
-    [employees, editingId],
-  );
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -91,6 +93,7 @@ const Employees = () => {
       managerId: employee.managerId,
       joinDate: employee.joinDate,
       status: employee.status,
+      avatarFile: null,
     });
     setError(null);
     setModalOpen(true);
@@ -348,6 +351,23 @@ const Employees = () => {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Avatar
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  avatarFile: event.target.files?.[0] ?? null,
+                }))
+              }
+              className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
