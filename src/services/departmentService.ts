@@ -10,9 +10,19 @@ interface DepartmentResponse {
   department: Department;
 }
 
-export const getDepartmentList = async (): Promise<Department[]> => {
-  const data = await apiRequest<DepartmentListResponse>("/departments");
-  return data.departments;
+let departmentListCache: Promise<Department[]> | null = null;
+
+export const getDepartmentList = (): Promise<Department[]> => {
+  if (!departmentListCache) {
+    departmentListCache = apiRequest<DepartmentListResponse>("/departments")
+      .then((data) => data.departments)
+      .catch((error) => {
+        departmentListCache = null;
+        throw error;
+      });
+  }
+
+  return departmentListCache;
 };
 
 export const createDepartment = async (
@@ -23,6 +33,7 @@ export const createDepartment = async (
     body: input,
   });
 
+  departmentListCache = null;
   return data.department;
 };
 
@@ -35,8 +46,11 @@ export const updateDepartment = async (
     body: input,
   });
 
+  departmentListCache = null;
   return data.department;
 };
 
-export const deleteDepartment = (id: number): Promise<void> =>
-  apiRequest(`/departments/${id}`, { method: "DELETE" });
+export const deleteDepartment = async (id: number): Promise<void> => {
+  await apiRequest(`/departments/${id}`, { method: "DELETE" });
+  departmentListCache = null;
+};

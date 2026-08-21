@@ -10,9 +10,19 @@ interface DesignationResponse {
   designation: Designation;
 }
 
-export const getDesignationList = async (): Promise<Designation[]> => {
-  const data = await apiRequest<DesignationListResponse>("/designations");
-  return data.designations;
+let designationListCache: Promise<Designation[]> | null = null;
+
+export const getDesignationList = (): Promise<Designation[]> => {
+  if (!designationListCache) {
+    designationListCache = apiRequest<DesignationListResponse>("/designations")
+      .then((data) => data.designations)
+      .catch((error) => {
+        designationListCache = null;
+        throw error;
+      });
+  }
+
+  return designationListCache;
 };
 
 export const createDesignation = async (
@@ -23,6 +33,7 @@ export const createDesignation = async (
     body: input,
   });
 
+  designationListCache = null;
   return data.designation;
 };
 
@@ -35,8 +46,11 @@ export const updateDesignation = async (
     body: input,
   });
 
+  designationListCache = null;
   return data.designation;
 };
 
-export const deleteDesignation = (id: number): Promise<void> =>
-  apiRequest(`/designations/${id}`, { method: "DELETE" });
+export const deleteDesignation = async (id: number): Promise<void> => {
+  await apiRequest(`/designations/${id}`, { method: "DELETE" });
+  designationListCache = null;
+};

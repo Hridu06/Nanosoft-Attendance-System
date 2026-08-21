@@ -48,10 +48,24 @@ const toRequestBody = (input: UserFormInput) => ({
   employee_id: input.employeeId,
 });
 
-export const getUsers = async (filters?: { role?: UserRole }): Promise<User[]> => {
-  const query = filters?.role ? `?role=${filters.role}` : "";
-  const data = await apiRequest<UserListResponse>(`/users${query}`);
-  return data.users.map(toUser);
+const userListCache = new Map<string, Promise<User[]>>();
+
+export const getUsers = (filters?: { role?: UserRole }): Promise<User[]> => {
+  const key = filters?.role ?? "all";
+
+  if (!userListCache.has(key)) {
+    const query = filters?.role ? `?role=${filters.role}` : "";
+    const request = apiRequest<UserListResponse>(`/users${query}`)
+      .then((data) => data.users.map(toUser))
+      .catch((error) => {
+        userListCache.delete(key);
+        throw error;
+      });
+
+    userListCache.set(key, request);
+  }
+
+  return userListCache.get(key)!;
 };
 
 export const getUser = async (id: number): Promise<User> => {
@@ -65,6 +79,7 @@ export const createUser = async (input: UserFormInput): Promise<User> => {
     body: toRequestBody(input),
   });
 
+  userListCache.clear();
   return toUser(data.user);
 };
 
@@ -77,8 +92,11 @@ export const updateUser = async (
     body: toRequestBody(input),
   });
 
+  userListCache.clear();
   return toUser(data.user);
 };
 
-export const deleteUser = (id: number): Promise<void> =>
-  apiRequest(`/users/${id}`, { method: "DELETE" });
+export const deleteUser = async (id: number): Promise<void> => {
+  await apiRequest(`/users/${id}`, { method: "DELETE" });
+  userListCache.clear();
+};
