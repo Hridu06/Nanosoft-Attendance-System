@@ -21,9 +21,14 @@ const Login = () => {
     try {
       const user = await login(identifier.trim(), password);
 
-      navigate(user.role === "admin" ? "/admin/dashboard" : "/admin/teams", {
-        replace: true,
-      });
+      const destination =
+        user.role === "admin"
+          ? "/app/dashboard"
+          : user.role === "employee"
+            ? "/app/my-dashboard"
+            : "/app/teams";
+
+      navigate(destination, { replace: true });
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Unable to sign in. Please try again.";

@@ -197,7 +197,7 @@ const EmployeeProfile = () => {
       <div className="space-y-4">
         <button
           type="button"
-          onClick={() => navigate("/admin/employees")}
+          onClick={() => navigate("/app/employees")}
           className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
         >
           <ArrowLeft size={16} />
@@ -215,7 +215,7 @@ const EmployeeProfile = () => {
     <div className="space-y-6">
       <button
         type="button"
-        onClick={() => navigate("/admin/employees")}
+        onClick={() => navigate("/app/employees")}
         className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
       >
         <ArrowLeft size={16} />
@@ -495,7 +495,7 @@ const EmployeeProfile = () => {
                 <tr key={project.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-6 py-4">
                     <Link
-                      to={`/admin/projects/${project.id}`}
+                      to={`/app/projects/${project.id}`}
                       className="text-sm font-medium text-slate-800 hover:text-blue-600 hover:underline"
                     >
                       {project.name}
@@ -526,7 +526,7 @@ const EmployeeProfile = () => {
               <p className="mt-1 text-sm text-slate-500">Recent daily records.</p>
             </div>
             <Link
-              to={`/admin/attendance/${employee.id}`}
+              to={`/app/attendance/${employee.id}`}
               className="flex items-center gap-1.5 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
               aria-label="View attendance calendar"
               title="View attendance calendar"

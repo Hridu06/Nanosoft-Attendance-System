@@ -94,7 +94,7 @@ const EmployeeAttendanceCalendar = () => {
     <div className="space-y-4">
       <button
         type="button"
-        onClick={() => navigate("/admin/attendance")}
+        onClick={() => navigate("/app/attendance")}
         className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
       >
         <ArrowLeft size={16} />

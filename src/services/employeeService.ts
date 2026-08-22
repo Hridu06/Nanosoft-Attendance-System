@@ -25,6 +25,17 @@ interface EmployeeResponse {
   employee: ApiEmployee;
 }
 
+interface MyProfileResponse {
+  employee: ApiEmployee | null;
+}
+
+export interface MyProfileInput {
+  name: string;
+  email: string;
+  phone: string;
+  avatarFile: File | null;
+}
+
 const toEmployee = (data: ApiEmployee): Employee => ({
   id: String(data.id),
   name: data.full_name,
@@ -105,3 +116,23 @@ export const updateEmployee = async (
 
 export const deleteEmployee = (id: string): Promise<void> =>
   apiRequest(`/employees/${id}`, { method: "DELETE" });
+
+export const getMyProfile = async (): Promise<Employee | null> => {
+  const data = await apiRequest<MyProfileResponse>("/profile");
+  return data.employee ? toEmployee(data.employee) : null;
+};
+
+export const updateMyProfile = async (input: MyProfileInput): Promise<Employee> => {
+  const formData = new FormData();
+  formData.append("full_name", input.name);
+  formData.append("email", input.email);
+  if (input.phone) formData.append("phone", input.phone);
+  if (input.avatarFile) formData.append("avatar", input.avatarFile);
+
+  const data = await apiRequest<EmployeeResponse>("/profile", {
+    method: "POST",
+    body: formData,
+  });
+
+  return toEmployee(data.employee);
+};

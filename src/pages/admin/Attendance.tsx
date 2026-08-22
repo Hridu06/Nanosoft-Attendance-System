@@ -301,7 +301,7 @@ const Attendance = () => {
 
                       <td className="px-6 py-4 text-right">
                         <Link
-                          to={`/admin/attendance/${record.employeeId}`}
+                          to={`/app/attendance/${record.employeeId}`}
                           className="inline-flex items-center gap-1.5 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
                           aria-label={`View calendar for ${employee?.name ?? "employee"}`}
                         >

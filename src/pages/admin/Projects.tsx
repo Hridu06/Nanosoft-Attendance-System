@@ -272,7 +272,7 @@ const Projects = () => {
 
                         <div>
                           <Link
-                            to={`/admin/projects/${project.id}`}
+                            to={`/app/projects/${project.id}`}
                             className="text-sm font-medium text-slate-800 hover:text-blue-600 hover:underline"
                           >
                             {project.name}

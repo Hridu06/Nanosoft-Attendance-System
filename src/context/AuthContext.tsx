@@ -25,6 +25,7 @@ const toAuthUser = (apiUser: ApiUser): AuthUser => ({
   name: apiUser.name,
   email: apiUser.email,
   role: apiUser.role,
+  employeeId: apiUser.employee?.id ?? null,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

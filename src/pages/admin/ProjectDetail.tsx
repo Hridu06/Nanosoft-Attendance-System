@@ -534,7 +534,7 @@ const ProjectDetail = () => {
 
     setDeleting(true);
     await deleteProject(project.id);
-    navigate("/admin/projects");
+    navigate("/app/projects");
   };
 
   if (loading) {
@@ -550,7 +550,7 @@ const ProjectDetail = () => {
       <div className="space-y-4">
         <button
           type="button"
-          onClick={() => navigate("/admin/projects")}
+          onClick={() => navigate("/app/projects")}
           className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
         >
           <ArrowLeft size={16} />
@@ -568,7 +568,7 @@ const ProjectDetail = () => {
     <div className="space-y-6">
       <button
         type="button"
-        onClick={() => navigate("/admin/projects")}
+        onClick={() => navigate("/app/projects")}
         className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
       >
         <ArrowLeft size={16} />

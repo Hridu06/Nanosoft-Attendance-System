@@ -10,6 +10,9 @@ import AdminLayout from "../layouts/AdminLayout";
 import Dashboard from "../pages/admin/Dashboard";
 import Employees from "../pages/admin/Employees";
 import EmployeeProfile from "../pages/employees/profile";
+import EmployeeDashboard from "../pages/employees/dashboard";
+import EmployeeTasks from "../pages/employees/tasks";
+import EmployeeMyProfile from "../pages/employees/my-profile";
 import Users from "../pages/admin/Users";
 import Managers from "../pages/admin/Managers";
 import Teams from "../pages/admin/Teams";
@@ -24,12 +27,16 @@ import Settings from "../pages/admin/Settings";
 import ProtectedRoute from "./ProtectedRoute";
 import { useAuth } from "../context/AuthContext";
 
-// Admins land on the full Dashboard; managers/employees don't have access to
-// it yet (it's built on modules — Projects, Attendance, Leave — that aren't
-// wired to the backend for their roles), so they land on Teams instead.
+// Admins land on the full Dashboard; employees land on their own scoped
+// Dashboard. Managers don't have access to one yet (it's built on modules —
+// Projects, Attendance, Leave — that aren't wired to the backend for their
+// role), so they land on Teams instead.
 const AdminHomeRedirect = () => {
   const { user } = useAuth();
-  return <Navigate to={user?.role === "admin" ? "dashboard" : "teams"} replace />;
+
+  if (user?.role === "admin") return <Navigate to="dashboard" replace />;
+  if (user?.role === "employee") return <Navigate to="my-dashboard" replace />;
+  return <Navigate to="teams" replace />;
 };
 
 const AppRoutes = () => {
@@ -41,12 +48,19 @@ const AppRoutes = () => {
 
         {/* Signed-in (any role) */}
         <Route element={<ProtectedRoute allowedRoles={["admin", "manager", "employee"]} />}>
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/app" element={<AdminLayout />}>
             <Route index element={<AdminHomeRedirect />} />
 
             {/* Read-only for every role; write actions are hidden/blocked
                 for non-admins inside the page itself and enforced server-side. */}
             <Route path="teams" element={<Teams />} />
+
+            {/* Employee-only */}
+            <Route element={<ProtectedRoute allowedRoles={["employee"]} />}>
+              <Route path="my-dashboard" element={<EmployeeDashboard />} />
+              <Route path="tasks" element={<EmployeeTasks />} />
+              <Route path="my-profile" element={<EmployeeMyProfile />} />
+            </Route>
 
             {/* Admin-only modules */}
             <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>

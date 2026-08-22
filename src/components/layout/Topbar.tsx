@@ -17,6 +17,18 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
     title: "Dashboard",
     subtitle: "Attendance Management",
   },
+  "my-dashboard": {
+    title: "Dashboard",
+    subtitle: "Your project activity",
+  },
+  tasks: {
+    title: "My Tasks",
+    subtitle: "Assigned by your manager or team lead",
+  },
+  "my-profile": {
+    title: "My Profile",
+    subtitle: "View and edit your details",
+  },
   employees: {
     title: "Employees",
     subtitle: "Manage employee records",

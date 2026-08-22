@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Pencil, Plus, Search, Trash2, UsersRound } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import Modal from "../../components/common/Modal";
 import {
   createUser,
@@ -47,6 +55,7 @@ const Users = () => {
   const [form, setForm] = useState<UserFormInput>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -100,6 +109,7 @@ const Users = () => {
       role: roleFilter === "all" ? "employee" : roleFilter,
     });
     setError(null);
+    setShowPassword(false);
     setModalOpen(true);
   };
 
@@ -113,6 +123,7 @@ const Users = () => {
       employeeId: user.employeeId,
     });
     setError(null);
+    setShowPassword(false);
     setModalOpen(true);
   };
 
@@ -417,15 +428,28 @@ const Users = () => {
                 </span>
               )}
             </label>
-            <input
-              required={!editingId}
-              type="password"
-              value={form.password}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, password: event.target.value }))
-              }
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
+            <div className="relative">
+              <input
+                required={!editingId}
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    password: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

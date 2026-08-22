@@ -5,6 +5,7 @@ export interface ApiUser {
   name: string;
   email: string;
   role: Role;
+  employee: { id: number; full_name: string; email: string } | null;
   email_verified_at: string | null;
   is_active: boolean;
   is_banned: boolean;
@@ -19,4 +20,5 @@ export interface AuthUser {
   name: string;
   email: string;
   role: Role;
+  employeeId: number | null;
 }

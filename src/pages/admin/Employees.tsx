@@ -234,7 +234,7 @@ const Employees = () => {
 
                         <div>
                           <Link
-                            to={`/admin/employees/${employee.id}`}
+                            to={`/app/employees/${employee.id}`}
                             className="text-sm font-medium text-slate-800 hover:text-blue-600 hover:underline"
                           >
                             {employee.name}

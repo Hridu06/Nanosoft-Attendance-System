@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   ListChecks,
+  UserCircle,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -36,28 +37,46 @@ const navGroups: NavGroup[] = [
     label: "Overview",
     items: [
       {
-        to: "/admin/dashboard",
+        to: "/app/dashboard",
         label: "Dashboard",
         icon: LayoutDashboard,
         roles: ["admin"],
+      },
+      {
+        to: "/app/my-dashboard",
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        roles: ["employee"],
+      },
+      {
+        to: "/app/tasks",
+        label: "My Tasks",
+        icon: ListChecks,
+        roles: ["employee"],
+      },
+      {
+        to: "/app/my-profile",
+        label: "My Profile",
+        icon: UserCircle,
+        roles: ["employee"],
       },
     ],
   },
   {
     label: "Management",
     items: [
-      { to: "/admin/employees", label: "Employees", icon: Users, roles: ["admin"] },
-      { to: "/admin/managers", label: "Manager", icon: UserCheck, roles: ["admin"] },
-      { to: "/admin/users", label: "Users", icon: UserCog, roles: ["admin"] },
-      { to: "/admin/teams", label: "Teams", icon: Users2 },
+      { to: "/app/employees", label: "Employees", icon: Users, roles: ["admin"] },
+      { to: "/app/managers", label: "Manager", icon: UserCheck, roles: ["admin"] },
+      { to: "/app/users", label: "Users", icon: UserCog, roles: ["admin"] },
+      { to: "/app/teams", label: "Teams", icon: Users2 },
       {
-        to: "/admin/projects",
+        to: "/app/projects",
         label: "Projects",
         icon: FolderKanban,
         roles: ["admin"],
         sub: [
           {
-            to: "/admin/projects/contributions",
+            to: "/app/projects/contributions",
             label: "Contributions",
             icon: ListChecks,
           },
@@ -68,15 +87,15 @@ const navGroups: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { to: "/admin/attendance", label: "Attendance", icon: Clock3, roles: ["admin"] },
-      { to: "/admin/leave", label: "Leave", icon: CalendarDays, roles: ["admin"] },
-      { to: "/admin/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
+      { to: "/app/attendance", label: "Attendance", icon: Clock3, roles: ["admin"] },
+      { to: "/app/leave", label: "Leave", icon: CalendarDays, roles: ["admin"] },
+      { to: "/app/reports", label: "Reports", icon: BarChart3, roles: ["admin"] },
     ],
   },
   {
     label: "System",
     items: [
-      { to: "/admin/settings", label: "Settings", icon: Settings, roles: ["admin"] },
+      { to: "/app/settings", label: "Settings", icon: Settings, roles: ["admin"] },
     ],
   },
 ];
